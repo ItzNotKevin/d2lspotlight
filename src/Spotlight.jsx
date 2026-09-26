@@ -83,12 +83,10 @@ function SpotlightPlaceholder({ text }) {
   );
 }
 
-function SpotlightInput({ value, onChange, onKeyDown, placeholder }) {
-  const inputRef = useRef(null);
-
+function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, expanded, activeId }) {
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [inputRef]);
 
   return (
     <div className="ls-search">
@@ -104,9 +102,12 @@ function SpotlightInput({ value, onChange, onKeyDown, placeholder }) {
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
+          role="combobox"
           aria-label="Search course resources"
-          aria-expanded={Boolean(value.trim())}
-          aria-controls="ls-results"
+          aria-autocomplete="list"
+          aria-expanded={expanded}
+          aria-controls={expanded ? 'ls-results' : undefined}
+          aria-activedescendant={activeId}
           autoComplete="off"
           spellCheck="false"
         />
@@ -116,15 +117,19 @@ function SpotlightInput({ value, onChange, onKeyDown, placeholder }) {
   );
 }
 
-function SearchResultCard({ resource, query, selected, onSelect, onHover }) {
+function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) {
   const Icon = resource.type === 'SLIDES' ? Presentation : resource.type === 'PDF' ? BookOpen : FileText;
+  // Selection follows mouse movement, not mouse position, so rows sliding under
+  // a resting cursor (typing, keyboard scrolling) don't steal the selection.
   return (
     <button
       type="button"
+      id={id}
       className={`ls-row ${selected ? 'is-selected' : ''}`}
       role="option"
       aria-selected={selected}
-      onMouseEnter={onHover}
+      tabIndex={-1}
+      onMouseMove={selected ? undefined : onHover}
       onClick={onSelect}
     >
       <span className={`ls-row-icon ls-type-${resource.type.toLowerCase()}`} aria-hidden="true"><Icon size={19} strokeWidth={1.65} /></span>
@@ -141,34 +146,39 @@ function SearchResultCard({ resource, query, selected, onSelect, onHover }) {
   );
 }
 
-function SearchResultsContainer({ results, query, selectedIndex, onHover, onSelect }) {
+function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect }) {
   return (
-    <div className="ls-results" id="ls-results" role="listbox" aria-label="Sample resources">
-      <div className="ls-section"><span>Matching resources</span><span>{results.length} shown</span></div>
-      {results.length ? results.map((resource, index) => (
-        <motion.div
-          key={`${resource.course}-${resource.title}`}
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.18, delay: Math.min(index * 0.035, 0.14) }}
-        >
-          <SearchResultCard
-            resource={resource}
-            query={query}
-            selected={index === selectedIndex}
-            onHover={() => onHover(index)}
-            onSelect={() => onSelect(index)}
-          />
-        </motion.div>
-      )) : (
+    <div className="ls-results" ref={listRef}>
+      <div className="ls-section" aria-hidden="true"><span>Matching resources</span><span>{results.length} shown</span></div>
+      <div id="ls-results" role="listbox" aria-label="Sample resources">
+        {results.map((resource, index) => (
+          <motion.div
+            key={`${resource.course}-${resource.title}`}
+            role="presentation"
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, delay: Math.min(index * 0.035, 0.14) }}
+          >
+            <SearchResultCard
+              id={`ls-option-${index}`}
+              resource={resource}
+              query={query}
+              selected={index === selectedIndex}
+              onHover={() => onHover(index)}
+              onSelect={() => onSelect(index)}
+            />
+          </motion.div>
+        ))}
+      </div>
+      {!results.length && (
         <div className="ls-empty"><strong>No sample resources found</strong><span>Try another title, course code, or remove a filter.</span></div>
       )}
     </div>
   );
 }
 
-export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited = () => {} }) {
+export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {} }) {
   const [hovered, setHovered] = useState(false);
   const [hoveredShortcut, setHoveredShortcut] = useState(null);
   const [searchValue, setSearchValue] = useState('');
@@ -178,6 +188,10 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [notice, setNotice] = useState('');
   const noticeTimer = useRef(null);
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+  const backdropRef = useRef(null);
+  const keyboardMoved = useRef(false);
   const reducedMotion = useReducedMotion();
   const hasQuery = Boolean(searchValue.trim());
 
@@ -192,6 +206,34 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
   }, [documents, hasQuery, recent, scope, searchValue]);
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
+
+  // New results start from the top of the list.
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, [searchResults]);
+
+  // Keep the keyboard selection visible; hover selection is already under the cursor.
+  useEffect(() => {
+    if (!keyboardMoved.current || !listRef.current) return;
+    keyboardMoved.current = false;
+    if (selectedIndex === 0) listRef.current.scrollTop = 0;
+    else listRef.current.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
+
+  // Stop wheel scrolling from reaching the page behind the overlay. React's wheel
+  // listeners are passive, so this needs a native listener to call preventDefault.
+  useEffect(() => {
+    const backdrop = backdropRef.current;
+    if (!backdrop) return;
+    function blockPageScroll(event) {
+      const list = listRef.current;
+      const overList = list && event.composedPath().includes(list);
+      // A scrollable list keeps its own scroll; overscroll-behavior stops it chaining.
+      if (!overList || list.scrollHeight <= list.clientHeight) event.preventDefault();
+    }
+    backdrop.addEventListener('wheel', blockPageScroll, { passive: false });
+    return () => backdrop.removeEventListener('wheel', blockPageScroll);
+  }, [isOpen]);
 
   function changeSearch(value) {
     setSearchValue(value);
@@ -216,10 +258,12 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
   function handleInputKeyDown(event) {
     if (event.key === 'ArrowDown' && searchResults.length) {
       event.preventDefault();
+      keyboardMoved.current = true;
       setSelectedIndex((index) => (index + 1) % searchResults.length);
     }
     if (event.key === 'ArrowUp' && searchResults.length) {
       event.preventDefault();
+      keyboardMoved.current = true;
       setSelectedIndex((index) => (index - 1 + searchResults.length) % searchResults.length);
     }
     if (event.key === 'Enter') {
@@ -231,10 +275,18 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
   function handleDialogKeyDown(event) {
     if (event.key === 'Escape') {
       event.preventDefault();
-      handleClose();
+      // Like macOS Spotlight: the first Esc clears the query, the second closes.
+      if (searchValue) {
+        changeSearch('');
+        // Chips unmount when results collapse; keep focus inside the dialog.
+        inputRef.current?.focus();
+      } else {
+        handleClose();
+      }
     }
     if (event.key === 'Tab') {
-      const focusables = [...event.currentTarget.querySelectorAll('input, .ls-chip, .ls-row')];
+      // Result rows are reached with the arrow keys, not Tab (listbox pattern).
+      const focusables = [...event.currentTarget.querySelectorAll('input, .ls-chip')];
       const first = focusables[0];
       const last = focusables.at(-1);
       if (event.shiftKey && event.target === first) {
@@ -255,6 +307,7 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
       {isOpen ? (
         <motion.div
           key="spotlight"
+          ref={backdropRef}
           className="ls-backdrop"
           initial={reducedMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -280,7 +333,15 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
               aria-label="Learn Spotlight search"
               transition={{ layout: motionTiming }}
             >
-              <SpotlightInput value={searchValue} onChange={changeSearch} onKeyDown={handleInputKeyDown} placeholder={placeholder} />
+              <SpotlightInput
+                inputRef={inputRef}
+                value={searchValue}
+                onChange={changeSearch}
+                onKeyDown={handleInputKeyDown}
+                placeholder={placeholder}
+                expanded={hasQuery}
+                activeId={hasQuery && searchResults.length ? `ls-option-${selectedIndex}` : undefined}
+              />
               <AnimatePresence initial={false}>
                 {hasQuery ? (
                   <motion.div
@@ -298,7 +359,7 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
                         return <button key={shortcut.id} className="ls-chip" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
                       })}
                     </div>
-                    <SearchResultsContainer results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} />
+                    <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} />
                     <div className="ls-footer"><span>Sample resources · LEARN not connected</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice}</span></div>
                   </motion.div>
                 ) : null}

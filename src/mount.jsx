@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppleSpotlight } from './AppleSpotlight.jsx';
+import { Spotlight } from './Spotlight.jsx';
 import css from './spotlight.css?inline';
 
 export function mountSpotlight(host, onExit = () => {}) {
@@ -28,10 +28,10 @@ export function mountSpotlight(host, onExit = () => {}) {
   function close() {
     if (!open || disposed) return;
     open = false;
-    root.render(<AppleSpotlight isOpen={false} handleClose={close} onExited={destroy} />);
+    root.render(<Spotlight isOpen={false} handleClose={close} onExited={destroy} />);
   }
 
   host.closeSpotlight = close;
-  root.render(<AppleSpotlight isOpen handleClose={close} onExited={destroy} />);
+  root.render(<Spotlight isOpen handleClose={close} onExited={destroy} />);
   return { close };
 }
