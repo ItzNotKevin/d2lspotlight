@@ -172,9 +172,12 @@
 .ls-type-pdf { background: #f2e3dd; color: #b9503c; }
 .ls-type-slides { background: #e3e8e9; color: #54747a; }
 .ls-row-copy { min-width: 0; flex: 1; }
-.ls-row-title { display: block; overflow: hidden; color: #25332f; font-size: 13px; font-weight: 750; line-height: 1.4; letter-spacing: -.013em; text-overflow: ellipsis; white-space: nowrap; }
-.ls-row-path { display: block; overflow: hidden; margin-top: 3px; color: #938a7d; font-size: 10.5px; font-weight: 600; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
-.ls-course { flex: none; padding: 5px 7px; border: 1px solid #d8d4c9; border-radius: 5px; color: #6d7469; font: 500 9px/1.1 'SFMono-Regular', Consolas, monospace; white-space: nowrap; }
+.ls-row-title { display: block; overflow: hidden; color: #25332f; font-size: 14px; font-weight: 750; line-height: 1.4; letter-spacing: -.013em; text-overflow: ellipsis; white-space: nowrap; }
+.ls-row-meta { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 4px; }
+.ls-type-label { flex: none; padding: 2px 5px; border-radius: 4px; background: #e9e6dc; color: #5f675f; font: 700 10px/1.2 'SFMono-Regular', Consolas, monospace; letter-spacing: .025em; }
+.ls-row-path { display: block; min-width: 0; overflow: hidden; color: #756f66; font-size: 12px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ls-course { flex: none; padding: 6px 8px; border: 1px solid #d8d4c9; border-radius: 5px; color: #59665d; font: 600 10.5px/1.1 'SFMono-Regular', Consolas, monospace; white-space: nowrap; }
+.ls-match { padding: 0 1px; border-radius: 3px; background: #efcd93; color: #3d3020; }
 .ls-chevron { flex: none; color: #acaa9e; opacity: 0; transform: translateX(-3px); transition: opacity .15s, transform .15s; }
 .ls-row:hover .ls-chevron, .ls-row.is-selected .ls-chevron { opacity: 1; transform: translateX(0); }
 
@@ -198,31 +201,35 @@
 .ls-hints kbd { display: inline-block; margin-right: 4px; padding: 2px 4px; border: 1px solid #dcd8cf; border-radius: 3px; color: #77766e; font: inherit; }
 .ls-notice { color: #a44b39; text-align: right; }
 
-.ls-shortcuts { position: absolute; top: 10px; left: calc(100% + 12px); display: flex; gap: 7px; }
+.ls-shortcuts { position: absolute; top: 10px; left: calc(100% + 12px); display: flex; gap: 4px; }
+.ls-shortcuts::before { position: absolute; top: 0; right: 100%; width: 12px; height: 72px; content: ''; }
 .ls-shortcut {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid #e5e1d6;
-  border-radius: 50%;
-  background: #f8f6f0;
-  color: #65716a;
-  box-shadow: 0 10px 30px rgba(9, 22, 20, .12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 60px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f8f6f0;
   cursor: pointer;
-  transition: color .15s, background .15s, transform .2s;
 }
 
-.ls-shortcut:hover, .ls-shortcut.is-active { background: #263b38; color: #fffdf8; transform: translateY(-2px); }
+.ls-shortcut-icon { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #e5e1d6; border-radius: 50%; background: #f8f6f0; color: #65716a; box-shadow: 0 10px 30px rgba(9, 22, 20, .12); transition: color .15s, background .15s, transform .2s; }
+.ls-shortcut-label { max-width: 60px; padding: 3px 4px; border-radius: 4px; background: rgba(29, 43, 39, .82); color: #fffdf8; font: 600 10px/1.15 'Avenir Next', 'Trebuchet MS', sans-serif; text-align: center; white-space: nowrap; }
+.ls-shortcut:hover .ls-shortcut-icon, .ls-shortcut.is-active .ls-shortcut-icon { background: #263b38; color: #fffdf8; transform: translateY(-2px); }
 
-@media (max-width: 1100px) { .ls-shortcuts { display: none; } }
+@media (max-width: 1190px) { .ls-shortcuts { display: none; } }
 @media (max-width: 550px) {
   .ls-backdrop { padding: 38px 10px 12px; }
   .ls-search { min-height: 60px; padding: 12px 18px; }
   .ls-input, .ls-placeholder { font-size: 17px; }
   .ls-filters { padding: 0 18px 16px; }
   .ls-footer { padding: 9px 18px; }
-  .ls-hints, .ls-course { display: none; }
+  .ls-hints, .ls-chevron { display: none; }
+  .ls-row { gap: 9px; padding: 10px 8px; }
+  .ls-course { padding: 5px; font-size: 9.5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

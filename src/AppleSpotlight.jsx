@@ -11,17 +11,31 @@ const resources = [
   { title: 'Practice problems: direct proofs', course: 'CS 245', path: 'Week 03 / Tutorials', type: 'DOC', recent: false }
 ];
 
+const demoCourse = 'MATH 239';
+
 const shortcuts = [
-  { id: 'all', label: 'All courses', icon: LayoutGrid },
-  { id: 'course', label: 'This course', icon: BookOpen },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'recent', label: 'Recent', icon: Clock3 }
+  { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
+  { id: 'course', label: demoCourse, shortLabel: demoCourse, icon: BookOpen },
+  { id: 'documents', label: 'Documents', shortLabel: 'Docs', icon: FileText },
+  { id: 'recent', label: 'Recent', shortLabel: 'Recent', icon: Clock3 }
 ];
 
 function matches(resource, query) {
   const words = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
   const text = `${resource.title} ${resource.course} ${resource.path} ${resource.type}`.toLocaleLowerCase();
   return words.every((word) => text.includes(word));
+}
+
+function HighlightText({ text, query }) {
+  const terms = [...new Set(query.trim().split(/\s+/).filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!terms.length) return text;
+
+  const escaped = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const parts = String(text).split(new RegExp(`(${escaped.join('|')})`, 'gi'));
+
+  return parts.map((part, index) =>
+    index % 2 === 1 ? <mark className="ls-match" key={index}>{part}</mark> : part
+  );
 }
 
 function isFilterActive(filter, scope, documents, recent) {
@@ -45,7 +59,8 @@ function ShortcutButton({ shortcut, active, onClick, onHover }) {
       onMouseLeave={() => onHover(null)}
       tabIndex={-1}
     >
-      <Icon aria-hidden="true" size={19} strokeWidth={1.65} />
+      <span className="ls-shortcut-icon"><Icon aria-hidden="true" size={19} strokeWidth={1.65} /></span>
+      <span className="ls-shortcut-label" aria-hidden="true">{shortcut.shortLabel}</span>
     </button>
   );
 }
@@ -101,7 +116,7 @@ function SpotlightInput({ value, onChange, onKeyDown, placeholder }) {
   );
 }
 
-function SearchResultCard({ resource, selected, onSelect, onHover }) {
+function SearchResultCard({ resource, query, selected, onSelect, onHover }) {
   const Icon = resource.type === 'SLIDES' ? Presentation : resource.type === 'PDF' ? BookOpen : FileText;
   return (
     <button
@@ -113,14 +128,20 @@ function SearchResultCard({ resource, selected, onSelect, onHover }) {
       onClick={onSelect}
     >
       <span className={`ls-row-icon ls-type-${resource.type.toLowerCase()}`} aria-hidden="true"><Icon size={19} strokeWidth={1.65} /></span>
-      <span className="ls-row-copy"><span className="ls-row-title">{resource.title}</span><span className="ls-row-path">{resource.path}</span></span>
-      <span className="ls-course">{resource.course}</span>
+      <span className="ls-row-copy">
+        <span className="ls-row-title"><HighlightText text={resource.title} query={query} /></span>
+        <span className="ls-row-meta">
+          <span className="ls-type-label"><HighlightText text={resource.type} query={query} /></span>
+          <span className="ls-row-path"><HighlightText text={resource.path} query={query} /></span>
+        </span>
+      </span>
+      <span className="ls-course"><HighlightText text={resource.course} query={query} /></span>
       <ChevronRight className="ls-chevron" size={16} strokeWidth={1.7} aria-hidden="true" />
     </button>
   );
 }
 
-function SearchResultsContainer({ results, selectedIndex, onHover, onSelect }) {
+function SearchResultsContainer({ results, query, selectedIndex, onHover, onSelect }) {
   return (
     <div className="ls-results" id="ls-results" role="listbox" aria-label="Sample resources">
       <div className="ls-section"><span>Matching resources</span><span>{results.length} shown</span></div>
@@ -134,6 +155,7 @@ function SearchResultsContainer({ results, selectedIndex, onHover, onSelect }) {
         >
           <SearchResultCard
             resource={resource}
+            query={query}
             selected={index === selectedIndex}
             onHover={() => onHover(index)}
             onSelect={() => onSelect(index)}
@@ -163,7 +185,7 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
     if (!hasQuery) return [];
     return resources.filter((resource) =>
       matches(resource, searchValue) &&
-      (scope === 'all' || resource.course === 'MATH 239') &&
+      (scope === 'all' || resource.course === demoCourse) &&
       (!documents || ['PDF', 'DOC', 'NOTES'].includes(resource.type)) &&
       (!recent || resource.recent)
     );
@@ -276,7 +298,7 @@ export function AppleSpotlight({ isOpen = true, handleClose = () => {}, onExited
                         return <button key={shortcut.id} className="ls-chip" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
                       })}
                     </div>
-                    <SearchResultsContainer results={searchResults} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} />
+                    <SearchResultsContainer results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} />
                     <div className="ls-footer"><span>Sample resources · LEARN not connected</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice}</span></div>
                   </motion.div>
                 ) : null}
