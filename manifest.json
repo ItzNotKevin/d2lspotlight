@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Learn Spotlight",
+  "version": "0.2.0",
+  "description": "A quick search interface for course resources. Frontend preview.",
+  "permissions": ["activeTab", "scripting"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open Learn Spotlight"
+  },
+  "commands": {
+    "toggle-spotlight": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open or close Learn Spotlight"
+    }
+  }
+}
