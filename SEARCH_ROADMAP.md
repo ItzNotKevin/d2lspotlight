@@ -2,11 +2,39 @@
 
 Prepared October 3, 2026 from the current code and source research. This is an implementation plan; unchecked items are proposed work, not verified capabilities.
 
+## Current embedding status and next work — October 12, 2026
+
+This section is the current priority summary. The older milestones below remain broader planning notes; their unchecked boxes do not override the verified work recorded here.
+
+Completed:
+
+- [x] Collect all 6,467 entries from the current Waterloo calendars: 4,343 undergraduate and 2,124 graduate courses across 156 subjects. Every entry has a description; collection finished with zero failures.
+- [x] Preserve course codes, titles, subjects, descriptions, source links, academic levels, and cross-listed identities, including professional-development and graduate suffix codes.
+- [x] Generate a local baseline for every course using the pinned 384-dimensional MiniLM model. The bundle contains 6,494 chunks and 6,249 unique vectors, occupying 9.6 MB of binary vector data.
+- [x] Add resumable collection, cached details, token-budget splitting, vector checksums, model/version validation, and reuse of unchanged vectors. Repeat collection reused all 6,467 details; repeat encoding reused all 6,249 vectors.
+- [x] Expand the extension's bundled course title lookup and rebuild it. Existing title-based attribution can use the larger catalog.
+- [x] Create a separate MATH 239 Fall 2026 outline prototype with 22 vectors covering all 13 teaching weeks and explicit reading references.
+- [x] Run 113 passing tests and a successful extension build. The build still reports a large-chunk warning. Check real topic queries across several fields and record weak short-query matches rather than treating coverage as an accuracy guarantee.
+
+Next, in priority order:
+
+1. **Load the catalog vectors into live search.** Add a versioned bundle loader and worker access, associate the public catalog entries with the user's actual indexed courses, and score the relevant enrolled courses. Keep typing responsive and preserve existing source/account/course filters and observed resource destinations.
+2. **Combine description keyword evidence with course-vector similarity.** Include exact topic matches in descriptions so a query such as `counterpoint` can identify MUSIC 270 despite weak model similarity. Keep course boosts bounded and retain exact resource titles, course codes, and assignment identifiers as strong constraints. Validate ambiguous and no-answer queries across sciences, arts, social sciences, business, and computing before choosing thresholds.
+3. **Collect and normalize outlines in bulk.** Use the calendar subject inventory to drive authenticated subject/term searches or a verified institutional export. Preserve separate term/section versions, publication dates, source evidence, and per-outline collection states. Report coverage and missing outlines explicitly.
+4. **Add outline topic, week, and reading vectors to resource ranking.** Link them to indexed resources only when course, term, section, path, week labels, or named readings provide supporting evidence. A course-level semantic match alone does not establish which document contains a topic.
+5. **Finish refresh and delivery.** Refresh changed catalog/outline versions, retain compatible cached vectors, and decide how users receive the shared public baseline. Shared hosting and Supabase uploads have not been implemented; local bundles are the current output.
+
+The immediate implementation task is steps 1 and 2. The baseline is complete for the current calendars, but its precomputed description vectors are not yet used by live Spotlight ranking. Detailed outlines are an additional enrichment layer, and only the supplied MATH 239 outline has been embedded so far. Retired courses outside the selected current calendars are not included in the baseline's coverage claim.
+
+The generated files live under `outline-data/catalog-embeddings/` and `outline-data/math239-fall2026/`. See [COURSE_CATALOG_EMBEDDINGS.md](COURSE_CATALOG_EMBEDDINGS.md) for exact current filenames, commands, and coverage, and [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md) for the outline importer.
+
 ## October 12 semantic setup update
 
 Hybrid search is now the user's next development priority. The opt-in local model, extension-owned worker, account-scoped IndexedDB embeddings, topic-weighted keyword/semantic blending, and reproducible model setup are implemented. Generic resource terms act as mild preferences in subject queries, while exact titles and assignment identities retain priority. Synthetic Node and isolated Chrome checks validate the initial integration. Model selection, threshold tuning, realistic retrieval benchmarks, full-text extraction, and live course validation remain open. See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
 
-Separate query-to-course scoring, broad subject abbreviations, a bundled Waterloo offerings lookup, preserved descriptive course names, and source-update date operators are now implemented. Course scores boost eligible resources without changing their original course associations. These weights and the course cutoff remain provisional; the bundled offerings list covers one undergraduate term, and realistic course/date retrieval validation is still needed.
+Separate query-to-course scoring, broad subject abbreviations, a bundled Waterloo calendar title lookup, preserved descriptive course names, and source-update date operators are implemented. Course scores boost eligible resources without changing their original course associations. The [catalog baseline pipeline](COURSE_CATALOG_EMBEDDINGS.md) collects all entries from the current undergraduate and graduate calendars and generates a separate local description vector bundle. Loading those precomputed vectors into live ranking and enriching them with outlines remain integration tasks. The ranking weights and course cutoff remain provisional, and realistic course/date retrieval validation is still needed.
+
+A local outline embedding prototype now imports supplied text or structured JSON and generates reusable course/topic/week/reading vectors. The supplied MATH 239 outline produces 22 vectors, with all 13 teaching weeks and explicit Enumeration/Graph Theory reading references. Live resource associations, bulk authenticated collection, broader real-outline validation, and shared delivery remain open. See [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md).
 
 ## October 11 implementation update
 
@@ -24,7 +52,7 @@ Keep the interaction immediate: show local matches on every keystroke. Enrichmen
 | --- | --- | --- |
 | LEARN | Enrollments, nested table of contents, local resource index, account checks, refresh | HTML page contents, navbar/tool links, external launch metadata, live edge cases |
 | Piazza | Verified page-global CSRF access; feed/profile indexing code; bounded titles/snippets | New feed/profile schema and pagination still require live validation; no full-thread index |
-| Combined search | Shared local matcher, source/course filters, recent history | Every query word must occur as a substring; no relevance ranking or typo tolerance |
+| Combined search | Ranked lexical/hybrid matching, aliases, typo tolerance, source/course filters, recent history | Precomputed catalog/outline vector integration, threshold tuning, and broader real retrieval validation |
 | Storage | Separate account-aware indices; actual byte usage displayed | Per-class coverage/refresh state, richer schema migrations, larger-data strategy |
 | Navigation | LEARN context links and Piazza post links | Broader external destinations and launch validation |
 | Link discovery | First pass described below | Links outside available metadata, redirects, opaque LTI launch links, other services |

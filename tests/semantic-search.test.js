@@ -9,13 +9,13 @@ const resource = (id, title, extra = {}) => ({ id, title, course: 'ZTEST 239', c
 
 test('sparse notes gain catalog context without encoded course labels or technical field names', () => {
   const notes = resource('notes', 'Enumeration', { course: 'MATH239_instructor_term_section_1269', path: 'Course Notes' });
-  assert.equal(resourceText(notes), 'Enumeration. Course Notes. Intro Combinatorics. mathematics');
+  assert.equal(resourceText(notes), 'Enumeration. Course Notes. Introduction to Combinatorics. mathematics');
   assert.equal(resourceText(notes, 'title'), 'Enumeration');
   assert.equal(courseDescription('MATH 239 - Enumeration and Graph Theory'), 'Enumeration and Graph Theory');
   assert.equal(courseDescription('Combinatorics'), 'Combinatorics');
   assert.equal(courseDescription('class123456789'), '');
   assert.equal(courseDescription('CS 246'), '');
-  assert.equal(resourceText({ ...notes, aliases: ['Enumeration', 'course notes'] }), 'Enumeration. Course Notes. Intro Combinatorics. mathematics');
+  assert.equal(resourceText({ ...notes, aliases: ['Enumeration', 'course notes'] }), 'Enumeration. Course Notes. Introduction to Combinatorics. mathematics');
 });
 
 test('meaning matches recover different wording while exact titles retain priority', () => {

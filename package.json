@@ -10,6 +10,11 @@
     "check:semantic": "node scripts/check-semantic.mjs",
     "check:semantic:browser": "node scripts/check-semantic-browser.mjs",
     "update:course-catalog": "node scripts/update-course-catalog.mjs",
+    "embed:catalog": "node scripts/embed-course-catalog.mjs",
+    "search:catalog": "node scripts/search-course-catalog.mjs",
+    "embed:outlines": "node scripts/embed-outlines.mjs",
+    "search:outlines": "node scripts/search-outlines.mjs",
+    "check:outlines": "node scripts/check-outline-embeddings.mjs",
     "setup:search-models": "node scripts/setup-search-models.mjs",
     "benchmark:search-models": "node scripts/benchmark-search-models.mjs",
     "test": "node --test"

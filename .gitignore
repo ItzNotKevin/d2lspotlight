@@ -3,4 +3,5 @@ dist/
 semantic-assets/
 benchmark-assets/
 benchmark-results/
+outline-data/
 .DS_Store
