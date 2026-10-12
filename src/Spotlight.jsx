@@ -241,10 +241,11 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     const backdrop = backdropRef.current;
     if (!backdrop) return;
     function blockPageScroll(event) {
-      const list = listRef.current;
-      const overList = list && event.composedPath().includes(list);
-      // A scrollable list keeps its own scroll; overscroll-behavior stops it chaining.
-      if (!overList || list.scrollHeight <= list.clientHeight) event.preventDefault();
+      const path = event.composedPath();
+      const containers = [listRef.current, backdrop.querySelector('.ls-panel')];
+      const scrollable = containers.some((node) => node && path.includes(node)
+        && node.scrollHeight > node.clientHeight && ['auto', 'scroll'].includes(getComputedStyle(node).overflowY));
+      if (!scrollable) event.preventDefault();
     }
     backdrop.addEventListener('wheel', blockPageScroll, { passive: false });
     return () => backdrop.removeEventListener('wheel', blockPageScroll);
