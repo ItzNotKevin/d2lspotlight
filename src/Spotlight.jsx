@@ -6,6 +6,7 @@ import { BookOpen, ChevronRight, Clock3, FileText, LayoutGrid, Presentation, Sea
 import { searchResources } from './learn/search.js';
 import { prepareQuery, rankResource } from './search/rank.js';
 import { sampleResources } from './sampleResources.js';
+import { useSemanticSearch } from './semantic/useSemanticSearch.jsx';
 
 const EMPTY_HISTORY = {};
 
@@ -107,7 +108,8 @@ function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, exp
 }
 
 function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) {
-  const fuzzy = query.trim() && rankResource(resource, prepareQuery(query))?.fuzzy;
+  const rank = query.trim() && rankResource(resource, prepareQuery(query));
+  const fuzzy = rank?.fuzzy;
   const Icon = resource.type === 'SLIDES' ? Presentation : resource.type === 'PDF' ? BookOpen : FileText;
   // Selection follows mouse movement, not mouse position, so rows sliding under
   // a resting cursor (typing, keyboard scrolling) don't steal the selection.
@@ -130,7 +132,9 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.source && <span>{resource.source}</span>}
           {resource.service && <span>{resource.service}</span>}
           {resource.directLink && <span>Opens directly</span>}
+          {resource.semanticMatch && <span>Semantic match</span>}
           {fuzzy && <span>Similar spelling</span>}
+          {rank?.reasons?.map((reason) => <span key={reason}>{reason}</span>)}
           <span className="ls-row-path"><HighlightText text={resource.path} query={query} /></span>
         </span>
       </span>
@@ -172,7 +176,7 @@ function SearchResultsContainer({ listRef, results, query, selectedIndex, onHove
   );
 }
 
-export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch }) {
+export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticScope = '' }) {
   const shortcuts = [
     { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
     ...(demo ? [{ id: 'course', label: courseLabel, shortLabel: 'Course', icon: BookOpen }] : []),
@@ -189,6 +193,15 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const [recent, setRecent] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [notice, setNotice] = useState('');
+  const [semanticEnabled, setSemanticEnabled] = useState(false);
+  useEffect(() => {
+    if (demo) return;
+    let active = true;
+    chrome.storage.local.get('localSemanticSearchEnabled').then((saved) => {
+      if (active) setSemanticEnabled(Boolean(saved.localSemanticSearchEnabled));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [demo]);
   const noticeTimer = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
@@ -198,7 +211,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const hasQuery = Boolean(searchValue.trim());
   const expanded = hasQuery || !demo;
 
-  const searchResults = useMemo(() => {
+  const lexicalResults = useMemo(() => {
     if (remoteResults !== null) return remoteResults;
     if (!demo) return searchResources(resources, { query: searchValue, courseId, source, documents, recent, history });
     if (!hasQuery) return [];
@@ -209,13 +222,21 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
       (!recent || resource.recent)
     );
   }, [resources, courseLabel, documents, hasQuery, recent, scope, searchValue, demo, courseId, source, history, remoteResults]);
+  const semantic = useSemanticSearch(resources, lexicalResults, { query: searchValue, courseId, source, documents, recent, history }, !demo && isOpen && semanticEnabled, semanticScope);
+  const searchResults = semantic.results;
+  const previousResults = useRef({ results: [], key: '' });
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
-  // New results start from the top of the list.
+  // Appending model results must not reset a keyboard-selected lexical match.
   useEffect(() => {
-    setSelectedIndex(0);
-    if (listRef.current) listRef.current.scrollTop = 0;
+    const key = JSON.stringify([searchValue, courseId, source, documents, recent]);
+    const previous = previousResults.current;
+    const id = previous.results[selectedIndex]?.id;
+    const found = previous.key === key ? searchResults.findIndex((resource) => resource.id === id) : -1;
+    setSelectedIndex(found >= 0 ? found : 0);
+    if (found < 0 && listRef.current) listRef.current.scrollTop = 0;
+    previousResults.current = { results: searchResults, key };
   }, [searchResults]);
 
   // Keep the keyboard selection visible; hover selection is already under the cursor.
@@ -359,6 +380,10 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                 activeId={expanded && searchResults[selectedIndex] ? `ls-option-${selectedIndex}` : undefined}
               />
               {connection}
+              {!demo && <div className="ls-connection-actions ls-search-context"><label><input type="checkbox" checked={semanticEnabled} onChange={(event) => {
+                setSemanticEnabled(event.target.checked);
+                chrome.storage.local.set({ localSemanticSearchEnabled: event.target.checked }).catch(() => {});
+              }} /> Local semantic search</label><span role="status">{semantic.status}</span></div>}
               <AnimatePresence initial={false}>
                 {expanded ? (
                   <motion.div
@@ -382,9 +407,10 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                       })}
                       {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setSelectedIndex(0); }}>
                         <option value="">All courses</option>
-                        {courses.filter((course) => !source || (course.id.startsWith('piazza:') ? 'Piazza' : 'LEARN') === source).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                        {courses.filter((course) => !source || resources.some((resource) => resource.courseId === course.id && resource.source === source)).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                       </select>}
                     </div>}
+                    {prepareQuery(searchValue).latest && <p className="ls-search-context" role="status">Latest available notes in each course; week numbers take priority over update dates.</p>}
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />

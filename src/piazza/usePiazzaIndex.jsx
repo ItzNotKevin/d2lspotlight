@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { emptyIndex } from '../learn/cache.js';
 import { PIAZZA_CACHE_KEY, piazzaIndexMessage } from './cache.js';
 import { classFromUrl, loadPiazzaFeed, normalizePosts, piazzaRequest } from './client.js';
-import { piazzaCourseName, detectPiazzaCourse } from './course.js';
+import { piazzaCourseName, detectPiazzaCourse, courseNameFromProfile, isClassIdLabel } from './course.js';
 
 export function usePiazzaIndex(isOpen) {
   const [index, setIndex] = useState(emptyIndex);
@@ -43,9 +43,12 @@ export function usePiazzaIndex(isOpen) {
         onPage: (count) => { if (!signal.aborted) setMessage(`Loading Piazza posts: ${count}…`); } });
       signal.throwIfAborted();
       const courseId = `piazza:${classId}`;
+      const savedName = previous.courses.find((item) => item.id === courseId)?.name;
+      const detectedName = courseNameFromProfile(profile, classId) || detectPiazzaCourse(document, classId, classFromUrl(location.href));
       const course = { id: courseId, name: piazzaCourseName(classId, {
-        title: document.title, pageClassId: classFromUrl(location.href), enteredName: courseName || detectPiazzaCourse(document, classId, classFromUrl(location.href)),
-        savedName: previous.courses.find((item) => item.id === courseId)?.name
+        title: document.title, pageClassId: classFromUrl(location.href),
+        enteredName: !isClassIdLabel(courseName, classId) ? courseName : !isClassIdLabel(savedName, classId) ? savedName : detectedName,
+        savedName
       }) };
       const resources = normalizePosts(feed.posts, classId).map((post) => ({ ...post, courseId, course: course.name, source: 'Piazza' }));
       setCourseName(course.name);
@@ -57,7 +60,7 @@ export function usePiazzaIndex(isOpen) {
         failedCourses: [...previous.failedCourses.filter((id) => id !== courseId), ...(feed.partial ? [courseId] : [])],
         updatedAt: Date.now() };
       setIndex(await piazzaIndexMessage('commit', updated));
-      if (!signal.aborted) setMessage(`${feed.posts.length} Piazza posts and ${resources.length - feed.posts.length} service links indexed${feed.partial ? ' · partial feed' : ''}. Search updates instantly.`);
+      if (!signal.aborted) setMessage(`${feed.posts.length} Piazza posts indexed under ${course.name}${feed.partial ? ' · partial feed' : ''}.${isClassIdLabel(course.name, classId) ? ' Course name was not detected. Enter the course code (e.g. CS 246) in Course name and click Save course name.' : ' Search updates instantly.'}`);
     } catch (error) {
       if (signal.aborted) return;
       if (['AUTH', 'IDENTITY', 'CSRF_UNAVAILABLE', 'NOT_JSON'].includes(error.code) || error.apiCategory === 'AUTH') {

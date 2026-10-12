@@ -2,6 +2,21 @@
 
 Updated October 11, 2026. This is the current handoff; older research/checklist files include historical implementation states. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
 
+Version 0.3.0 adds bidirectional assignment-alias regressions, automatic unique course associations,
+duplicate-course confirmation, a visible version footer, and an optional local semantic model.
+See `LOCAL_SEMANTIC_SEARCH.md`. Real Node, browser WASM, and unpacked-extension
+content-script/offscreen model smoke checks pass; signed-in site integration still needs validation. Semantic search is now
+implemented rather than merely proposed in the older sections below.
+
+Follow-up: contextual metadata/intent search is implemented; see `CONTEXTUAL_SEARCH_PLAN.md`.
+It adds subject/week/annotation evidence, latest-note ordering, and related concepts. It does not
+close the two browser integration bugs below. The automated suite now has 74 passing tests.
+
+Latest fixes: subject inference now parses LEARN labels such as `STAT_230_001_F26`;
+Piazza retries detection when the current name is an opaque fallback, checks all course-header
+candidates plus visible top labels, and uses matching class records from the profile when available.
+These fixes have regression coverage but still require confirmation on the user's real page.
+
 ## Start here
 
 1. Run `npm ci`, `npm test`, and `npm run build`.
@@ -90,7 +105,7 @@ These are planned features, not existing regressions. See `SEARCH_ROADMAP.md` an
 1. **Upcoming deadlines:** obtain structured dates from LEARN assignments/quizzes/calendar; use Piazza announcements and outlines as supplementary evidence. Preserve source, timezone, revisions, and uncertainty; never silently convert ambiguous dates into confirmed deadlines.
 2. **Assessment preparation:** connect each confirmed deadline to the assignment, relevant lecture notes, practice, and instructor clarifications. Show why each resource was selected.
 3. **Better cross-site coverage:** course associations, class discovery, saved course websites/tool links, and user-controlled exclusions.
-4. **Search quality:** collect representative queries and expected top results, improve aliases/ranking, then evaluate local semantic search against that baseline. Embeddings/NLP are not currently implemented.
+4. **Search quality:** collect representative queries and expected top results, improve aliases/ranking, then evaluate local semantic search against that baseline. Optional local embeddings are implemented in v0.3.0; real student relevance evaluation remains pending.
 5. **Full-text search:** retrieve and extract supported PDFs/documents and full Piazza threads with explicit caching limits and refresh behavior.
 
 ## Verification at handoff

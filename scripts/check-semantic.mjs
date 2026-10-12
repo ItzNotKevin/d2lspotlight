@@ -1,0 +1,14 @@
+import { env, pipeline } from '@huggingface/transformers';
+import { resolve } from 'node:path';
+import assert from 'node:assert/strict';
+import { cosine } from '../src/semantic/retrieval.js';
+env.allowRemoteModels = false;
+env.localModelPath = `${resolve('models')}/`;
+const model = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', { dtype: 'q8', device: 'cpu', local_files_only: true });
+const embed = async (text) => Array.from((await model(text, { pooling: 'mean', normalize: true })).data);
+const query = await embed('counting the number of ways to arrange objects');
+const related = cosine(query, await embed('Combinatorics: permutations and combinations, counting arrangements'));
+const unrelated = cosine(query, await embed('C++ object oriented inheritance and virtual destructors'));
+assert.ok(related > unrelated + .1);
+console.log(JSON.stringify({ dimensions: query.length, related, unrelated, localInference: 'passed' }));
+await model.dispose();

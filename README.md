@@ -74,6 +74,19 @@ Full semantic search, arbitrary custom tool domains, and links absent from avail
 
 For current unresolved bugs and the next developer's priorities, see [BUGS_AND_NEXT_STEPS.md](BUGS_AND_NEXT_STEPS.md).
 
+Version 0.3.0 adds local semantic search and automatic unique course-code associations.
+Run `npm run setup:semantic` once, then `npm run build`. Reload the extension and tabs, verify
+**v0.3.0** in the footer, and enable **Local semantic search**. Setup downloads model files;
+course content stays local during inference. See [LOCAL_SEMANTIC_SEARCH.md](LOCAL_SEMANTIC_SEARCH.md)
+for installation, tests, permissions, and limitations.
+
+Contextual search now interprets week numbers, annotated-note filenames, selected course subjects,
+latest-note intent, and a small related-concept vocabulary. Try `latest stat230 notes`,
+`probability lecture notes`, `professor notes stat230`, or `enumeration`. Inferred matches are labelled;
+latest means the newest available numbered lecture week in each indexed course, not a verified
+calendar teaching week. Research, implementation, and future outline/model stages are in
+[CONTEXTUAL_SEARCH_PLAN.md](CONTEXTUAL_SEARCH_PLAN.md).
+
 After updating, reload the extension at `chrome://extensions` and reload your LEARN and Piazza tabs.
 Open Spotlight in your CS 246 Piazza class and click **Refresh Piazza posts**. The course code is detected
 from the page title; if detection fails, enter `CS 246` in **Course name** and refresh again. This name

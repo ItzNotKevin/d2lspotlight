@@ -1,14 +1,19 @@
 {
   "name": "d2lspotlight",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.semantic.config.js && node scripts/semantic-assets.mjs",
+    "setup:semantic": "node scripts/setup-semantic.mjs",
+    "check:semantic": "node scripts/check-semantic.mjs",
+    "check:semantic:browser": "node scripts/check-semantic-browser.mjs",
+    "check:semantic:extension": "node scripts/check-semantic-browser.mjs --extension",
     "test": "node --test"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
     "framer-motion": "12.42.2",
     "lucide-react": "0.577.0",
     "react": "19.2.3",
@@ -16,6 +21,6 @@
   },
   "devDependencies": {
     "linkedom": "^0.18.13",
-    "vite": "7.3.0"
+    "vite": "7.3.7"
   }
 }

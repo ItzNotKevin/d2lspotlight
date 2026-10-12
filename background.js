@@ -1,6 +1,21 @@
 import { createIndexStore } from './src/learn/cache.js';
 import { readPiazzaSession } from './src/piazza/session.js';
 import { PIAZZA_CACHE_KEY } from './src/piazza/cache.js';
+import { semanticRequest } from './src/semantic/broker.js';
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.type !== 'semantic-search') return;
+  semanticRequest(message, sender, chrome).then(reply, () => reply({ ok: false, error: 'Local semantic search is unavailable. Keyword search remains available.' }));
+  return true;
+});
+
+// Drop cached vectors on account changes or clearing either source.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const changedIdentity = [PIAZZA_CACHE_KEY, 'learnSpotlightIndexV1'].some((key) => changes[key]
+    && changes[key].oldValue?.accountId !== changes[key].newValue?.accountId);
+  if (changedIdentity) chrome.offscreen.closeDocument().catch(() => {});
+});
 
 const piazzaStore = createIndexStore(chrome.storage.local, PIAZZA_CACHE_KEY);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
