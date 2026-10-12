@@ -1,6 +1,16 @@
 import { createIndexStore } from './src/learn/cache.js';
 import { readPiazzaSession } from './src/piazza/session.js';
 import { PIAZZA_CACHE_KEY } from './src/piazza/cache.js';
+import { clearSemanticCache, registerSemanticSearch } from './src/search/semantic/background.js';
+
+registerSemanticSearch();
+
+async function updateIndex(store, action, payload) {
+  const previous = ['begin', 'clear'].includes(action) ? await store('read') : null;
+  const index = await store(action, payload);
+  if (action === 'clear' || (action === 'begin' && previous.accountId !== index.accountId)) await clearSemanticCache();
+  return index;
+}
 
 const piazzaStore = createIndexStore(chrome.storage.local, PIAZZA_CACHE_KEY);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
@@ -11,7 +21,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     reply({ ok: false, error: 'Refresh from a signed-in Piazza tab.' });
     return;
   }
-  piazzaStore(message.action, message.payload).then(
+  updateIndex(piazzaStore, message.action, message.payload).then(
     (index) => reply({ ok: true, index }),
     (error) => reply({ ok: false, error: /quota/i.test(error.message)
       ? 'Local storage is full. Clear saved data for a source before refreshing.'
@@ -35,7 +45,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     reply({ ok: false, error: 'Refresh from a signed-in LEARN tab.' });
     return;
   }
-  indexStore(message.action, message.payload).then(
+  updateIndex(indexStore, message.action, message.payload).then(
     (index) => reply({ ok: true, index }),
     (error) => reply({ ok: false, error: error.message })
   );

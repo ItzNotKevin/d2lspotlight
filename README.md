@@ -50,6 +50,8 @@ Run `npm test` for adapter tests and `npm run build` to rebuild the extension. T
 
 ## Search roadmap and Möbius links
 
+Local hybrid search is now available as an opt-in setup. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) to download the pinned model, build, and enable **Meaning search**. Keyword results remain immediate; related-meaning results arrive after a typing pause. The initial implementation searches metadata locally and still needs evaluation on real courses.
+
 See [WATERLOO_PRODUCT_IDEAS.md](WATERLOO_PRODUCT_IDEAS.md) for ranked student-facing ideas and the proposed upcoming-assessments/preparation-pack feature.
 
 See [SEARCH_ROADMAP.md](SEARCH_ROADMAP.md) for the staged plan: data coverage, service-link discovery, ranked/fuzzy matching, optional semantic search, and deadlines/preparation material.
@@ -69,7 +71,7 @@ To try the update:
 3. Try `cs246 a2`, a small typo such as `mobiuss`, and a tool name such as `marmoset` or `crowdmark`.
 4. Click the previously empty Möbius entry; a verified shortcut should show **Opens directly** and open Möbius in a new tab. A page with instructions should still open LEARN.
 
-Full semantic search, arbitrary custom tool domains, and links absent from available source content remain future work.
+Semantic search quality evaluation, full-document search, arbitrary custom tool domains, and links absent from available source content remain future work.
 # Testing course names, weekly notes, and direct Möbius links
 
 For current unresolved bugs and the next developer's priorities, see [BUGS_AND_NEXT_STEPS.md](BUGS_AND_NEXT_STEPS.md).

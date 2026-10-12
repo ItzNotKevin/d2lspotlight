@@ -2,6 +2,8 @@
 
 Updated October 11, 2026. This is the current handoff; older research/checklist files include historical implementation states. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
 
+October 12 priority update: the user selected hybrid keyword + semantic search as the next development priority. An opt-in local-model worker, embedding cache, hybrid retrieval, setup scripts, and synthetic validation are now implemented. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) for setup and the remaining evaluation work. The integration bugs below still require live validation.
+
 ## Start here
 
 1. Run `npm ci`, `npm test`, and `npm run build`.
@@ -90,7 +92,7 @@ These are planned features, not existing regressions. See `SEARCH_ROADMAP.md` an
 1. **Upcoming deadlines:** obtain structured dates from LEARN assignments/quizzes/calendar; use Piazza announcements and outlines as supplementary evidence. Preserve source, timezone, revisions, and uncertainty; never silently convert ambiguous dates into confirmed deadlines.
 2. **Assessment preparation:** connect each confirmed deadline to the assignment, relevant lecture notes, practice, and instructor clarifications. Show why each resource was selected.
 3. **Better cross-site coverage:** course associations, class discovery, saved course websites/tool links, and user-controlled exclusions.
-4. **Search quality:** collect representative queries and expected top results, improve aliases/ranking, then evaluate local semantic search against that baseline. Embeddings/NLP are not currently implemented.
+4. **Search quality:** collect representative queries and expected top results, improve aliases/ranking, and evaluate the opt-in local semantic-search baseline against those examples. See `SEMANTIC_SEARCH.md` for the October 12 setup and remaining evaluation work.
 5. **Full-text search:** retrieve and extract supported PDFs/documents and full Piazza threads with explicit caching limits and refresh behavior.
 
 ## Verification at handoff

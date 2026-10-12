@@ -3,7 +3,11 @@
   "name": "Learn Spotlight",
   "version": "0.2.0",
   "description": "Search course resources using your signed-in Waterloo LEARN session.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "offscreen"],
+  "minimum_chrome_version": "116",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self'"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"

@@ -14,8 +14,23 @@ export function LearnSpotlight(props) {
   const [diagnostics, setDiagnostics] = useState([]);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [storageBytes, setStorageBytes] = useState(null);
+  const [semanticEnabled, setSemanticEnabled] = useState(false);
   const controller = useRef(null);
   const onLearn = location.origin === LEARN_ORIGIN;
+
+  useEffect(() => {
+    let active = true;
+    chrome.storage.local.get('semanticSearchEnabled').then((saved) => {
+      if (active) setSemanticEnabled(Boolean(saved.semanticSearchEnabled));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  function toggleSemanticSearch() {
+    const enabled = !semanticEnabled;
+    setSemanticEnabled(enabled);
+    chrome.storage.local.set({ semanticSearchEnabled: enabled }).catch(() => {});
+  }
 
   useEffect(() => {
     if (!props.isOpen) return;
@@ -108,6 +123,9 @@ export function LearnSpotlight(props) {
     <div className="ls-connection">
       <p role="status">{message}</p>
       <div className="ls-connection-actions">
+        <button className="ls-chip" aria-pressed={semanticEnabled} onClick={toggleSemanticSearch}>
+          Meaning search: {semanticEnabled ? 'on' : 'off'}
+        </button>
         {onLearn
           ? <button className="ls-chip" disabled={busy} onClick={() => refresh(true)}>{busy ? 'Refreshing…' : 'Refresh courses'}</button>
           : <a className="ls-chip" href={LEARN_ORIGIN} target="_blank" rel="noreferrer">Open LEARN</a>}
@@ -121,6 +139,6 @@ export function LearnSpotlight(props) {
   const resources = React.useMemo(() => [...index.resources.map((resource) => ({ ...resource, source: 'LEARN' })), ...piazza.index.resources], [index.resources, piazza.index.resources]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
   return <Spotlight {...props} resources={resources} courses={[...index.courses, ...piazza.index.courses]} history={history}
-    demo={false} connection={<>{connection}{piazza.connection}</>} onResourceOpen={recordOpen}
+    demo={false} semanticEnabled={semanticEnabled} connection={<>{connection}{piazza.connection}</>} onResourceOpen={recordOpen}
     footer={`LEARN + Piazza${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
 }
