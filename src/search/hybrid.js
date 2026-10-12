@@ -1,34 +1,29 @@
-import { normalizeQuery, prepareQuery } from './rank.js';
-import { filterResources, searchResources } from '../learn/search.js';
+import { exactIdentifierMatch, matchesQueryConstraints, prepareQuery, prepareSearchQuery, rankResource, resourcePreference } from './rank.js';
+import { filterResources, rankResources, searchResources } from '../learn/search.js';
 import { MIN_SIMILARITY } from './semantic/config.js';
 
 export function semanticConstraintsMatch(resource, query) {
-  const parsed = prepareQuery(query);
-  const courseWords = normalizeQuery(resource.course).split(' ');
-  const fields = [resource.title, resource.course, resource.path, resource.type, resource.service, ...(resource.aliases || [])];
-  const words = new Set(normalizeQuery(fields.join(' ')).split(' '));
-  const titleAssignments = prepareQuery(resource.title).assignments;
-  const assignments = titleAssignments.length ? titleAssignments : prepareQuery(resource.path).assignments;
-  if (!parsed.assignments.every((id) => assignments.includes(id))) return false;
-  return parsed.words.filter((word) => /\d|\+|#/.test(word)).every((word) => {
-    if (/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word) && !/^(?:week|lecture|lec|chapter|unit|module|section|topic|page|slide)s?\d/.test(word)) return courseWords.includes(word);
-    return words.has(word);
-  });
+  return matchesQueryConstraints(resource, prepareQuery(query));
 }
 
 export function hybridSearch(resources, options, semanticMatches = []) {
-  const lexical = searchResources(resources, options);
-  if (!options.query?.trim() || !prepareQuery(options.query).words.length) return lexical;
+  if (!options.query?.trim() || !semanticMatches.length) return searchResources(resources, options);
+  const query = prepareSearchQuery(resources, options.query);
+  if (!query.words.length) return [];
   const limit = options.limit ?? 100;
   const eligible = new Map(filterResources(resources, options).map((resource) => [resource.id, resource]));
-  const seen = new Set(lexical.map((resource) => resource.id));
-  const added = [];
-  for (const match of [...semanticMatches].sort((a, b) => b.score - a.score)) {
+  const candidates = new Map(rankResources(resources, options).map((item) => [item.resource.id, { ...item, semantic: 0 }]));
+  for (const match of semanticMatches) {
     const resource = eligible.get(match.id);
-    if (!resource || seen.has(match.id) || !Number.isFinite(match.score) || match.score < MIN_SIMILARITY || match.score > 1) continue;
-    if (!semanticConstraintsMatch(resource, options.query)) continue;
-    seen.add(match.id);
-    added.push({ ...resource, semanticMatch: true });
+    if (!resource || !Number.isFinite(match.score) || match.score < MIN_SIMILARITY || match.score > 1) continue;
+    if (!matchesQueryConstraints(resource, query)) continue;
+    const item = candidates.get(match.id) || { resource, order: candidates.size, rank: rankResource(resource, query), semantic: 0 };
+    item.semantic = Math.max(item.semantic, (match.score - MIN_SIMILARITY) / (1 - MIN_SIMILARITY));
+    candidates.set(match.id, item);
   }
-  return [...lexical, ...added].slice(0, limit);
+  return [...candidates.values()].map((item) => ({ ...item,
+    priority: item.rank?.exactTitle ? 2 : exactIdentifierMatch(item.resource, query) ? 1 : 0,
+    score: .35 * (item.rank?.relevance || 0) + .65 * item.semantic + .03 * resourcePreference(item.resource, query)
+  })).sort((a, b) => b.priority - a.priority || b.score - a.score || (b.rank?.score || 0) - (a.rank?.score || 0) || a.order - b.order)
+    .slice(0, limit).map(({ resource, rank }) => rank ? resource : { ...resource, semanticMatch: true });
 }

@@ -1,7 +1,9 @@
 import { normalizeSearchText } from '../services.js';
 
 const prepared = new WeakMap();
-const fillers = new Set(['find', 'show', 'me', 'please', 'where', 'is', 'the', 'my', 'open', 'for', 'can', 'you']);
+const corpora = new WeakMap();
+const fillers = new Set(['find', 'show', 'me', 'please', 'where', 'is', 'the', 'my', 'open', 'for', 'can', 'you', 'on', 'about', 'in', 'of', 'a', 'an', 'to', 'and']);
+const resourceTerms = new Set(['note', 'notes', 'lecture', 'lectures', 'slide', 'slides', 'textbook', 'textbooks', 'document', 'documents', 'pdf', 'file', 'files', 'material', 'materials', 'resource', 'resources', 'course']);
 
 export function normalizeQuery(value) {
   return normalizeSearchText(value)
@@ -50,15 +52,56 @@ export function editDistance(a, b, maximum = 2) {
 
 export function prepareQuery(query) {
   const text = normalizeQuery(query);
-  return { text, words: text.split(/\s+/).filter((word) => word && !fillers.has(word)), assignments: assignmentIds(query) };
+  const words = [...new Set(text.split(/\s+/).filter((word) => word && !fillers.has(word)))];
+  const topics = words.filter((word) => !resourceTerms.has(word));
+  const assignments = assignmentIds(query);
+  const hasTopic = topics.some((word) => !/\d|\+|#/.test(word) && !(assignments.length && word === 'assignment'));
+  const preferences = hasTopic ? words.filter((word) => resourceTerms.has(word)) : [];
+  return { text, words, topics: preferences.length ? topics : words, preferences, assignments };
+}
+
+export function prepareSearchQuery(resources, query) {
+  let corpus = corpora.get(resources);
+  if (!corpus) {
+    const frequencies = new Map();
+    for (const resource of resources) {
+      const words = new Set(prepare(resource).fields.flatMap((field) => field.words));
+      for (const word of words) frequencies.set(word, (frequencies.get(word) || 0) + 1);
+    }
+    corpus = { size: resources.length, frequencies };
+    corpora.set(resources, corpus);
+  }
+  const parsed = prepareQuery(query);
+  parsed.weights = new Map(parsed.words.map((word) => [word, 1 + Math.log((corpus.size + 1) / ((corpus.frequencies.get(word) || 0) + 1))]));
+  return parsed;
+}
+
+export function semanticQueryText(query) {
+  const parsed = prepareQuery(query);
+  const topics = parsed.topics.filter((word) => !/\d|\+|#/.test(word) && !(parsed.assignments.length && word === 'assignment'));
+  return topics.length ? topics.join(' ') : parsed.words.join(' ');
+}
+
+export function matchesQueryConstraints(resource, query) {
+  const data = prepare(resource);
+  if (!query.assignments.every((id) => data.assignments.includes(id))) return false;
+  return query.words.filter((word) => /\d|\+|#/.test(word)).every((word) => {
+    if (/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word) && !/^(?:week|lecture|lec|chapter|unit|module|section|topic|page|slide)s?\d/.test(word)) return data.fields[2].words.includes(word);
+    return data.fields.some((field) => field.words.includes(word));
+  });
 }
 
 export function rankResource(resource, query) {
   const data = prepare(resource);
-  if (query.assignments.length && data.assignments.length && !query.assignments.every((id) => data.assignments.includes(id))) return null;
+  if (!matchesQueryConstraints(resource, query)) return null;
   let score = 0;
   let fuzzy = false;
+  let topicScore = 0;
+  let topicMaximum = 0;
+  let preferenceScore = 0;
   for (const word of query.words) {
+    const preference = query.preferences?.includes(word);
+    const weight = query.weights?.get(word) || 1;
     let best = 0;
     let exact = false;
     const identifier = /\d|\+|#/.test(word);
@@ -72,12 +115,33 @@ export function rankResource(resource, query) {
         if (!/\d|\+|#/.test(candidate) && candidate.length <= 40 && editDistance(word, candidate, maximum) <= maximum) best = Math.max(best, field.weight * .5);
       }
     }
-    if (!best) return null;
+    if (!best && !preference) return null;
+    if (preference) {
+      preferenceScore += best / 12;
+      score += best * .15;
+      continue;
+    }
     if (!exact) fuzzy = true;
-    score += best;
+    topicScore += best * weight;
+    topicMaximum += 12 * weight;
+    score += best * weight;
   }
   if (!query.words.length) return null;
-  if (data.fields[0].text === query.text) score += 30;
+  const exactTitle = data.fields[0].text === query.text;
+  if (exactTitle) score += 30;
   else if (data.fields[0].text.startsWith(query.text)) score += 12;
-  return { score, fuzzy };
+  const exactIdentifier = exactIdentifierMatch(resource, query);
+  return { score, fuzzy, relevance: topicMaximum ? topicScore / topicMaximum : 0,
+    preference: query.preferences?.length ? preferenceScore / query.preferences.length : 0, exactTitle, exactIdentifier };
+}
+
+export function exactIdentifierMatch(resource, query) {
+  const titleAssignments = assignmentIds(resource.title);
+  return query.assignments.length > 0 && query.assignments.every((id) => titleAssignments.includes(id));
+}
+
+export function resourcePreference(resource, query) {
+  if (!query.preferences.length) return 0;
+  const fields = prepare(resource).fields;
+  return query.preferences.reduce((score, word) => score + (fields.some((field) => field.words.some((candidate) => candidate === word || candidate.startsWith(word))) ? 1 : 0), 0) / query.preferences.length;
 }

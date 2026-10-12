@@ -18,7 +18,7 @@ test('sparse notes retain meaningful text without encoded course labels or techn
   assert.equal(resourceText({ ...notes, aliases: ['Enumeration', 'course notes'] }), 'Enumeration. Course Notes');
 });
 
-test('meaning matches recover different wording and retain keyword ordering', () => {
+test('meaning matches recover different wording while exact titles retain priority', () => {
   const notes = resource('notes', 'Enumeration course notes');
   const exact = resource('exact', 'Combinatorics textbook');
   const records = [notes, exact];

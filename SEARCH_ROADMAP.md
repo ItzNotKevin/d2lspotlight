@@ -4,7 +4,7 @@ Prepared October 3, 2026 from the current code and source research. This is an i
 
 ## October 12 semantic setup update
 
-Hybrid search is now the user's next development priority. The opt-in local model, extension-owned worker, account-scoped IndexedDB embeddings, keyword-first merging, and reproducible model setup are implemented. Synthetic Node and isolated Chrome checks validate the initial integration. Model selection, threshold tuning, realistic retrieval benchmarks, full-text extraction, and live course validation remain open. See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
+Hybrid search is now the user's next development priority. The opt-in local model, extension-owned worker, account-scoped IndexedDB embeddings, topic-weighted keyword/semantic blending, and reproducible model setup are implemented. Generic resource terms act as mild preferences in subject queries, while exact titles and assignment identities retain priority. Synthetic Node and isolated Chrome checks validate the initial integration. Model selection, threshold tuning, realistic retrieval benchmarks, full-text extraction, and live course validation remain open. See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
 
 ## October 11 implementation update
 

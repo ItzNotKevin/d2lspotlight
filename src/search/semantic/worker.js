@@ -2,6 +2,7 @@ import { pipeline, env } from '@huggingface/transformers';
 import { MODEL_ID, MAX_RESOURCES, MIN_SIMILARITY } from './config.js';
 import { openEmbeddingCache } from './cache.js';
 import { cacheKey, cosineSimilarity, embeddingFor } from './model.js';
+import { semanticQueryText } from '../rank.js';
 
 env.allowRemoteModels = false;
 env.allowLocalModels = true;
@@ -58,10 +59,11 @@ async function search(message) {
   }
   const candidates = indexedVectors.filter((resource) => allowed.has(resource.id));
   if (!current()) throw new Error('Search superseded.');
-  let queryVector = queryVectors.get(message.query);
+  const queryText = semanticQueryText(message.query);
+  let queryVector = queryVectors.get(queryText);
   if (!queryVector) {
-    queryVector = await embed(message.query);
-    queryVectors.set(message.query, queryVector);
+    queryVector = await embed(queryText);
+    queryVectors.set(queryText, queryVector);
     if (queryVectors.size > 32) queryVectors.delete(queryVectors.keys().next().value);
   }
   if (!current()) throw new Error('Search superseded.');

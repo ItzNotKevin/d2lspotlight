@@ -77,6 +77,8 @@ try {
   const warmMs = performance.now() - started;
   const topicOnly = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'topic', query: 'combinatorics' })})`);
   assert.equal(topicOnly.matches.some((match) => match.id === 'notes'), true, 'The title view should recover the topic without the textbook keyword.');
+  const notesQuery = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'notes-query', query: 'combinatorics notes' })})`);
+  assert.deepEqual(notesQuery.matches, topicOnly.matches, 'Adding notes must not change the semantic topic being retrieved.');
   const filtered = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'third', allowedIds: ['chemistry'] })})`);
   assert.equal(filtered.matches.length, 0);
   const cacheCount = () => evaluate(`new Promise((resolveCount, reject) => {
