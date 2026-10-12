@@ -1,9 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { LearnSpotlight } from './LearnSpotlight.jsx';
 import { Spotlight } from './Spotlight.jsx';
 import css from './spotlight.css?inline';
 
-export function mountSpotlight(host, onExit = () => {}) {
+export function mountSpotlight(host, onExit = () => {}, { live = false } = {}) {
   const shadow = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
   style.textContent = css;
@@ -11,6 +12,7 @@ export function mountSpotlight(host, onExit = () => {}) {
   shadow.append(style, mount);
 
   const root = createRoot(mount);
+  const Component = live ? LearnSpotlight : Spotlight;
   let open = true;
   let disposed = false;
 
@@ -28,10 +30,10 @@ export function mountSpotlight(host, onExit = () => {}) {
   function close() {
     if (!open || disposed) return;
     open = false;
-    root.render(<Spotlight isOpen={false} handleClose={close} onExited={destroy} />);
+    root.render(<Component isOpen={false} handleClose={close} onExited={destroy} />);
   }
 
   host.closeSpotlight = close;
-  root.render(<Spotlight isOpen handleClose={close} onExited={destroy} />);
+  root.render(<Component isOpen handleClose={close} onExited={destroy} />);
   return { close };
 }

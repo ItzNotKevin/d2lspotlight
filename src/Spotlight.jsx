@@ -1,24 +1,13 @@
+import { canOpenResource } from './services.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { BookOpen, ChevronRight, Clock3, FileText, LayoutGrid, Presentation, Search } from 'lucide-react';
 
-const resources = [
-  { title: 'Bijections and counting', course: 'MATH 239', path: 'Unit 04 / Counting techniques', type: 'PDF', recent: true },
-  { title: 'Proof techniques: injections and surjections', course: 'MATH 239', path: 'Unit 03 / Lecture notes', type: 'NOTES', recent: false },
-  { title: 'Graph theory — chapter readings', course: 'MATH 239', path: 'Unit 06 / Textbook', type: 'PDF', recent: true },
-  { title: 'Logic and proof systems', course: 'CS 245', path: 'Week 05 / Slides', type: 'SLIDES', recent: true },
-  { title: 'Relations and functions', course: 'MATH 135', path: 'Week 07 / Course notes', type: 'PDF', recent: false },
-  { title: 'Practice problems: direct proofs', course: 'CS 245', path: 'Week 03 / Tutorials', type: 'DOC', recent: false }
-];
+import { searchResources } from './learn/search.js';
+import { prepareQuery, rankResource } from './search/rank.js';
+import { sampleResources } from './sampleResources.js';
 
-const demoCourse = 'MATH 239';
-
-const shortcuts = [
-  { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
-  { id: 'course', label: demoCourse, shortLabel: demoCourse, icon: BookOpen },
-  { id: 'documents', label: 'Documents', shortLabel: 'Docs', icon: FileText },
-  { id: 'recent', label: 'Recent', shortLabel: 'Recent', icon: Clock3 }
-];
+const EMPTY_HISTORY = {};
 
 function matches(resource, query) {
   const words = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -118,6 +107,7 @@ function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, exp
 }
 
 function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) {
+  const fuzzy = query.trim() && rankResource(resource, prepareQuery(query))?.fuzzy;
   const Icon = resource.type === 'SLIDES' ? Presentation : resource.type === 'PDF' ? BookOpen : FileText;
   // Selection follows mouse movement, not mouse position, so rows sliding under
   // a resting cursor (typing, keyboard scrolling) don't steal the selection.
@@ -137,6 +127,10 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
         <span className="ls-row-title"><HighlightText text={resource.title} query={query} /></span>
         <span className="ls-row-meta">
           <span className="ls-type-label"><HighlightText text={resource.type} query={query} /></span>
+          {resource.source && <span>{resource.source}</span>}
+          {resource.service && <span>{resource.service}</span>}
+          {resource.directLink && <span>Opens directly</span>}
+          {fuzzy && <span>Similar spelling</span>}
           <span className="ls-row-path"><HighlightText text={resource.path} query={query} /></span>
         </span>
       </span>
@@ -146,14 +140,14 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
   );
 }
 
-function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect }) {
+function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect, heading = 'Matching resources', emptyMessage = 'Try another title, course code, or remove a filter.' }) {
   return (
     <div className="ls-results" ref={listRef}>
-      <div className="ls-section" aria-hidden="true"><span>Matching resources</span><span>{results.length} shown</span></div>
-      <div id="ls-results" role="listbox" aria-label="Sample resources">
+      <div className="ls-section" aria-hidden="true"><span>{heading}</span><span>{results.length} shown</span></div>
+      <div id="ls-results" role="listbox" aria-label="Course resources">
         {results.map((resource, index) => (
           <motion.div
-            key={`${resource.course}-${resource.title}`}
+            key={resource.id || `${resource.course}-${resource.title}`}
             role="presentation"
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
@@ -172,17 +166,25 @@ function SearchResultsContainer({ listRef, results, query, selectedIndex, onHove
         ))}
       </div>
       {!results.length && (
-        <div className="ls-empty"><strong>No sample resources found</strong><span>Try another title, course code, or remove a filter.</span></div>
+        <div className="ls-empty"><strong>No matching resources</strong><span>{emptyMessage}</span></div>
       )}
     </div>
   );
 }
 
-export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {} }) {
+export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch }) {
+  const shortcuts = [
+    { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
+    ...(demo ? [{ id: 'course', label: courseLabel, shortLabel: 'Course', icon: BookOpen }] : []),
+    { id: 'documents', label: 'Documents', shortLabel: 'Docs', icon: FileText },
+    { id: 'recent', label: 'Recent', shortLabel: 'Recent', icon: Clock3 }
+  ];
   const [hovered, setHovered] = useState(false);
   const [hoveredShortcut, setHoveredShortcut] = useState(null);
   const [searchValue, setSearchValue] = useState('');
   const [scope, setScope] = useState('all');
+  const [courseId, setCourseId] = useState('');
+  const [source, setSource] = useState('');
   const [documents, setDocuments] = useState(false);
   const [recent, setRecent] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -194,21 +196,25 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const keyboardMoved = useRef(false);
   const reducedMotion = useReducedMotion();
   const hasQuery = Boolean(searchValue.trim());
+  const expanded = hasQuery || !demo;
 
   const searchResults = useMemo(() => {
+    if (remoteResults !== null) return remoteResults;
+    if (!demo) return searchResources(resources, { query: searchValue, courseId, source, documents, recent, history });
     if (!hasQuery) return [];
     return resources.filter((resource) =>
       matches(resource, searchValue) &&
-      (scope === 'all' || resource.course === demoCourse) &&
-      (!documents || ['PDF', 'DOC', 'NOTES'].includes(resource.type)) &&
+      (scope === 'all' || resource.course === courseLabel) &&
+      (!documents || ['PDF', 'DOC', 'NOTES', 'SLIDES'].includes(resource.type)) &&
       (!recent || resource.recent)
     );
-  }, [documents, hasQuery, recent, scope, searchValue]);
+  }, [resources, courseLabel, documents, hasQuery, recent, scope, searchValue, demo, courseId, source, history, remoteResults]);
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
   // New results start from the top of the list.
   useEffect(() => {
+    setSelectedIndex(0);
     if (listRef.current) listRef.current.scrollTop = 0;
   }, [searchResults]);
 
@@ -237,12 +243,14 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
 
   function changeSearch(value) {
     setSearchValue(value);
+    onQueryChange?.(value);
     setSelectedIndex(0);
     setNotice('');
   }
 
   function selectFilter(filter) {
     if (filter === 'all' || filter === 'course') setScope(filter);
+    if (filter === 'all') { setCourseId(''); setSource(''); }
     if (filter === 'documents') setDocuments((current) => !current);
     if (filter === 'recent') setRecent((current) => !current);
     setSelectedIndex(0);
@@ -250,6 +258,13 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
 
   function selectResult(index) {
     if (!searchResults[index]) return;
+    if (!demo) {
+      if (!canOpenResource(searchResults[index].url)) return;
+      const url = new URL(searchResults[index].url);
+      window.open(url.href, '_blank', 'noopener,noreferrer');
+      onResourceOpen(searchResults[index]);
+      return;
+    }
     setNotice('Preview only — links come later');
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(''), 3200);
@@ -268,7 +283,8 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      selectResult(selectedIndex);
+      if (onSearch && !searchResults.length) onSearch();
+      else selectResult(selectedIndex);
     }
   }
 
@@ -286,7 +302,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     }
     if (event.key === 'Tab') {
       // Result rows are reached with the arrow keys, not Tab (listbox pattern).
-      const focusables = [...event.currentTarget.querySelectorAll('input, .ls-chip')];
+      const focusables = [...event.currentTarget.querySelectorAll('input, button:not([disabled]):not([tabindex="-1"]), select:not([disabled]), textarea, a[href]')];
       const first = focusables[0];
       const last = focusables.at(-1);
       if (event.shiftKey && event.target === first) {
@@ -327,7 +343,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
           >
             <motion.section
               layout
-              className={`ls-panel ${hasQuery ? 'is-expanded' : ''}`}
+              className={`ls-panel ${expanded ? 'is-expanded' : ''}`}
               role="dialog"
               aria-modal="true"
               aria-label="Learn Spotlight search"
@@ -339,11 +355,12 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                 onChange={changeSearch}
                 onKeyDown={handleInputKeyDown}
                 placeholder={placeholder}
-                expanded={hasQuery}
-                activeId={hasQuery && searchResults.length ? `ls-option-${selectedIndex}` : undefined}
+                expanded={expanded}
+                activeId={expanded && searchResults[selectedIndex] ? `ls-option-${selectedIndex}` : undefined}
               />
+              {connection}
               <AnimatePresence initial={false}>
-                {hasQuery ? (
+                {expanded ? (
                   <motion.div
                     key="results"
                     className="ls-expanded-content"
@@ -352,21 +369,32 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.16, 1, 0.3, 1] }}
                   >
-                    <div className="ls-filters" role="group" aria-label="Search filters">
+                    {remoteResults === null && <div className="ls-filters" role="group" aria-label="Search filters">
+                      {!demo && <select className="ls-course-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); }}>
+                        <option value="">LEARN + Piazza</option>
+                        <option value="LEARN">LEARN only</option>
+                        <option value="Piazza">Piazza only</option>
+                      </select>}
                       {shortcuts.map((shortcut) => {
                         const Icon = shortcut.icon;
-                        const active = isFilterActive(shortcut.id, scope, documents, recent);
+                        const active = shortcut.id === 'all' && !demo ? !courseId && !source : isFilterActive(shortcut.id, scope, documents, recent);
                         return <button key={shortcut.id} className="ls-chip" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
                       })}
-                    </div>
-                    <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} />
-                    <div className="ls-footer"><span>Sample resources · LEARN not connected</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice}</span></div>
+                      {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setSelectedIndex(0); }}>
+                        <option value="">All courses</option>
+                        {courses.filter((course) => !source || (course.id.startsWith('piazza:') ? 'Piazza' : 'LEARN') === source).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                      </select>}
+                    </div>}
+                    <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult}
+                      heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
+                      emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
+                    <div className="ls-footer"><span>{footer}</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice}</span></div>
                   </motion.div>
                 ) : null}
               </AnimatePresence>
             </motion.section>
             <AnimatePresence>
-              {hovered && !hasQuery ? (
+              {hovered && !expanded ? (
                 <motion.div className="ls-shortcuts" key="shortcuts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   {shortcuts.map((shortcut, index) => (
                     <motion.div

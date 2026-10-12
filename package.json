@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "node --test"
   },
   "dependencies": {
     "framer-motion": "12.42.2",
@@ -14,6 +15,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "linkedom": "^0.18.13",
     "vite": "7.3.0"
   }
 }

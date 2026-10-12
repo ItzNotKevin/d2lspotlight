@@ -13,5 +13,5 @@ if (existing) {
   document.documentElement.appendChild(host);
   mountSpotlight(host, () => {
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
-  });
+  }, { live: true });
 }
