@@ -77,3 +77,19 @@ test('clearing semantic cache awaits the offscreen acknowledgement', async () =>
   respond = () => ({ ok: false, error: 'Could not clear meaning-search data.' });
   await assert.rejects(clearSemanticCache(), /Could not clear/);
 });
+
+
+test('semantic broker applies the same automatic and confirmed course associations as the overlay', async () => {
+  reset();
+  saved[CACHE_KEY].courses = [{ id: '239', code: 'MATH239', name: 'MATH 239' }];
+  saved[PIAZZA_CACHE_KEY] = { ...emptyIndex(), accountId: 'piazza-one', courses: [{ id: 'piazza:math', name: 'MATH239' }],
+    resources: [{ id: 'post', title: 'Enumeration notes', course: 'MATH239', courseId: 'piazza:math', type: 'POST', path: '' }] };
+  await search({ filters: { courseId: '239', source: 'Piazza' } });
+  assert.deepEqual(sent[0].allowedIds, ['post']);
+  assert.equal(sent[0].resources.find(r => r.id === 'post').sourceCourseId, 'piazza:math');
+  sent = [];
+  saved[CACHE_KEY].courses.push({ id: 'other-section', code: 'MATH239', name: 'MATH239 other section' });
+  saved['courseAssociations:["account-one","piazza-one"]'] = { 'piazza:math': 'other-section' };
+  await search({ filters: { courseId: 'other-section', source: 'Piazza' } });
+  assert.deepEqual(sent[0].allowedIds, ['post']);
+});

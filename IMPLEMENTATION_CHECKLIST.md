@@ -1,5 +1,8 @@
 # Learn Spotlight implementation checklist
 
+
+Latest update: v0.3.0 implements optional local semantic retrieval, bidirectional assignment aliases, and automatic unambiguous course associations. See [LOCAL_SEMANTIC_SEARCH.md](LOCAL_SEMANTIC_SEARCH.md) for setup, validation, and remaining work. Earlier stages below retain their planning context.
+
 Reviewed October 1, 2026 against the README and all current source/configuration files. This is a code review, not a live LEARN integration or browser accessibility test. `npm run build` passes.
 
 The README describes a frontend preview rather than a complete product specification. The core checklist below assumes the intended next milestone is searching real course resources and opening them. Integration choices still need validation against the target LEARN instance; optional features are listed separately.

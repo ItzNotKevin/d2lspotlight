@@ -1,6 +1,7 @@
 import { normalizeSearchText } from '../services.js';
 import { canonicalSubject, compareResourceDates, dateIntent } from './intent.js';
 import { courseText } from './course.js';
+import { resourceContext, queryIntent, contextualOrder } from './context.js';
 
 const prepared = new WeakMap();
 const corpora = new WeakMap();
@@ -9,7 +10,7 @@ const resourceTerms = new Set(['note', 'notes', 'lecture', 'lectures', 'slide', 
 
 export function normalizeQuery(value) {
   return normalizeSearchText(value)
-    .replace(/_/g, ' ')
+    .replace(/[_∕]/g, ' ')
     .replace(/\bweek\s*0*(\d+)\b/g, 'week $1')
     .replace(/\b(?:a|assignment|assignments|assn|hw|homework)\s*[-#:]?\s*0*(\d+)\b/g, 'assignment $1')
     .replace(/\b([a-z]{2,8})[\s_-]+(\d{2,4}[a-z]?)\b/g, '$1$2')
@@ -17,17 +18,18 @@ export function normalizeQuery(value) {
 }
 function tokens(value) { return normalizeQuery(value).split(/\s+/).filter(Boolean).map(canonicalSubject); }
 function assignmentIds(value) {
-  return [...normalizeSearchText(value).matchAll(/\b(?:a|assignment|assignments|assn|hw|homework)\s*[-#:]?\s*0*(\d+)\b/g)].map((match) => match[1]);
+  return [...normalizeQuery(value).matchAll(/\bassignment\s+(\d+)\b/g)].map((match) => match[1]);
 }
 
 function prepare(resource) {
   if (prepared.has(resource)) return prepared.get(resource);
   const context = normalizeSearchText(`${resource.title} ${resource.path}`).replace(/[_-]/g, ' ');
+  const inferred = resourceContext(resource);
   const studyAliases = [];
   if (/\b(?:annotated|lecture|lectures|lec|slides)\b/.test(context)) studyAliases.push('lecture notes');
   if (/\bslides\b/.test(context) || resource.type === 'SLIDES') studyAliases.push('lecture slides notes');
-  const values = [resource.title, resource.service, `${resource.course || ''} ${courseText(resource)}`, [...(resource.aliases || []), ...studyAliases].join(' '), resource.path, resource.type, resource.destinationHost, resource.source];
-  const fields = values.map((value, i) => ({ text: normalizeQuery(value), words: tokens(value), weight: [12, 11, 10, 9, 6, 5, 4, 4][i] }));
+  const values = [resource.title, resource.service, `${resource.course || ''} ${courseText(resource)}`, [...(resource.aliases || []), ...studyAliases].join(' '), resource.path, resource.type, resource.destinationHost, resource.source, inferred.aliases.join(' ')];
+  const fields = values.map((value, i) => ({ text: normalizeQuery(value), words: tokens(value), weight: [12, 11, 10, 9, 6, 5, 4, 4, 3][i] }));
   const titleAssignments = assignmentIds(resource.title);
   const data = { fields, courseWords: tokens(courseText(resource)), assignments: titleAssignments.length ? titleAssignments : assignmentIds(resource.path) };
   prepared.set(resource, data);
@@ -53,13 +55,16 @@ export function editDistance(a, b, maximum = 2) {
 }
 
 export function prepareQuery(query) {
-  const { text, dateOrder } = dateIntent(normalizeQuery(query));
+  const intent = queryIntent(query);
+  const dated = dateIntent(normalizeQuery(query));
+  const { text } = dateIntent(normalizeQuery(intent.text));
+  const dateOrder = dated.dateOrder || (intent.latest && !/\b(?:oldest|earliest)\b/.test(normalizeQuery(query)) ? 'desc' : null);
   const words = [...new Set(tokens(text).filter((word) => !fillers.has(word)))];
   const topics = words.filter((word) => !resourceTerms.has(word));
   const assignments = assignmentIds(query);
   const hasTopic = topics.some((word) => !/\d|\+|#/.test(word) && !(assignments.length && word === 'assignment'));
   const preferences = hasTopic ? words.filter((word) => resourceTerms.has(word)) : [];
-  return { text, words, topics: preferences.length ? topics : words, preferences, assignments, dateOrder };
+  return { text, words, topics: preferences.length ? topics : words, preferences, assignments, dateOrder, latest: dateOrder === 'desc', annotated: intent.annotated };
 }
 
 export function prepareSearchQuery(resources, query) {
@@ -108,11 +113,13 @@ export function courseRelevance(resource, query) {
 export function compareDateIntent(a, b, query) {
   if (!query.dateOrder) return 0;
   return Number(b.courseRelevance >= .5) - Number(a.courseRelevance >= .5)
+    || (query.dateOrder === 'desc' ? contextualOrder(a.resource, b.resource, query) : 0)
     || compareResourceDates(a.resource, b.resource, query.dateOrder);
 }
 
 export function matchesQueryConstraints(resource, query) {
   const data = prepare(resource);
+  if (query.latest && !query.assignments.length && query.words.some(word => ['notes', 'note', 'lecture', 'lectures', 'slides'].includes(word)) && data.assignments.length) return false;
   if (!query.assignments.every((id) => data.assignments.includes(id))) return false;
   return query.words.filter((word) => /\d|\+|#/.test(word)).every((word) => {
     if (/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word) && !/^(?:week|lecture|lec|chapter|unit|module|section|topic|page|slide)s?\d/.test(word)) return data.fields[2].words.includes(word);
@@ -128,6 +135,7 @@ export function rankResource(resource, query) {
   let topicScore = 0;
   let topicMaximum = 0;
   let preferenceScore = 0;
+  const reasons = new Set();
   for (const word of query.words) {
     const preference = query.preferences?.includes(word);
     const weight = query.weights?.get(word) || 1;
@@ -135,7 +143,7 @@ export function rankResource(resource, query) {
     let exact = false;
     const identifier = /\d|\+|#/.test(word);
     for (const field of data.fields) {
-      if (field.words.includes(word)) { best = Math.max(best, field.weight); exact = true; }
+      if (field.words.includes(word)) { best = Math.max(best, field.weight); exact = true; if (field.weight === 3) reasons.add('Course/file context'); }
       else if (!identifier && field.words.some((candidate) => candidate.startsWith(word))) { best = Math.max(best, field.weight * .8); exact = true; }
     }
     if (!best && !identifier && word.length >= 5 && word.length <= 40) {
@@ -162,7 +170,7 @@ export function rankResource(resource, query) {
   if (exactTitle) score += 30;
   else if (query.text && data.fields[0].text.startsWith(query.text)) score += 12;
   const exactIdentifier = exactIdentifierMatch(resource, query);
-  return { score, fuzzy, relevance: topicMaximum ? topicScore / topicMaximum : 0,
+  return { score, fuzzy, reasons: [...reasons], relevance: topicMaximum ? topicScore / topicMaximum : 0,
     preference: query.preferences?.length ? preferenceScore / query.preferences.length : 0, exactTitle, exactIdentifier, courseRelevance: course };
 }
 

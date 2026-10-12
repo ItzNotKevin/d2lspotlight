@@ -50,7 +50,7 @@ Run `npm test` for adapter tests and `npm run build` to rebuild the extension. T
 
 ## Search roadmap and Möbius links
 
-Local hybrid search is now available as an opt-in setup. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) to download the pinned model, build, and enable **Meaning search**. Keyword results remain immediate; related-meaning results arrive after a typing pause. The initial implementation searches metadata locally and still needs evaluation on real courses.
+Local hybrid search is available as an opt-in setup. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) to download the pinned model, build, and enable **Meaning search**. Keyword results remain immediate; related-meaning results arrive after a typing pause. The initial implementation searches metadata locally and still needs evaluation on real courses.
 
 See [WATERLOO_PRODUCT_IDEAS.md](WATERLOO_PRODUCT_IDEAS.md) for ranked student-facing ideas and the proposed upcoming-assessments/preparation-pack feature.
 
@@ -75,6 +75,19 @@ Semantic search quality evaluation, full-document search, arbitrary custom tool 
 # Testing course names, weekly notes, and direct Möbius links
 
 For current unresolved bugs and the next developer's priorities, see [BUGS_AND_NEXT_STEPS.md](BUGS_AND_NEXT_STEPS.md).
+
+Version 0.3.0 adds local semantic search and automatic unique course-code associations.
+Run `npm run setup:semantic` once, then `npm run build`. Reload the extension and tabs, verify
+**v0.3.0** in the footer, and enable **Meaning search**. Setup downloads model files;
+course content stays local during inference. See [LOCAL_SEMANTIC_SEARCH.md](LOCAL_SEMANTIC_SEARCH.md)
+for installation, tests, permissions, and limitations.
+
+Contextual search now interprets week numbers, annotated-note filenames, selected course subjects,
+latest-note intent, and a small related-concept vocabulary. Try `latest stat230 notes`,
+`probability lecture notes`, `professor notes stat230`, or a topic present in your saved metadata.
+latest means the newest available numbered lecture week in each indexed course, not a verified
+calendar teaching week. Research, implementation, and future outline/model stages are in
+[CONTEXTUAL_SEARCH_PLAN.md](CONTEXTUAL_SEARCH_PLAN.md).
 
 After updating, reload the extension at `chrome://extensions` and reload your LEARN and Piazza tabs.
 Open Spotlight in your CS 246 Piazza class and click **Refresh Piazza posts**. The course code is detected
@@ -101,3 +114,9 @@ no longer prevent an otherwise content-free Möbius page from opening directly. 
 in a topic description is also recognized. Results that qualify show **Opens directly**.
 Pages containing instructions, multiple destinations, or interactive content, and LTI launches,
 still open through LEARN. Actual account-specific links require a browser check after refreshing.
+
+## October 12 combined implementation
+
+The current extension is **v0.3.0**. Unique LEARN/Piazza course-code pairs share a filter; duplicate candidates or conflicting known terms ask for confirmation. Assignment aliases work in both directions across filename separators. Keyword search is immediate; **Meaning search** uses the incoming persistent local worker and hybrid ranking.
+
+See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) for merge choices, [WORK_SESSION_MEMORY.md](WORK_SESSION_MEMORY.md) for user decisions, and [LOCAL_SEMANTIC_SEARCH.md](LOCAL_SEMANTIC_SEARCH.md) for integrated setup. After pulling: `npm ci`, `npm run setup:semantic`, `npm run build`, then reload the extension and browser tabs. Generated catalog/outline vectors are not included in Git; PDF full-text indexing remains planned.

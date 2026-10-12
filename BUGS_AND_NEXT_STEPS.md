@@ -1,8 +1,12 @@
 # Bugs and next steps — developer handoff
 
-Updated October 11, 2026. This is the current handoff; older research/checklist files include historical implementation states. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
+Updated October 12, 2026. This is the current handoff; older research/checklist files include historical implementation states. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
 
 October 12 priority update: the user selected hybrid keyword + semantic search as the next development priority. An opt-in local-model worker, embedding cache, hybrid retrieval, setup scripts, and synthetic validation are now implemented. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) for setup and the remaining evaluation work. The integration bugs below still require live validation.
+
+## Integration status
+
+The incoming semantic/benchmark/catalog/outline implementation is retained, with local course associations, assignment filename fixes, weekly-note context, Piazza naming improvements, and browser checks applied on top. See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) and [WORK_SESSION_MEMORY.md](WORK_SESSION_MEMORY.md). PDF full-text indexing is the next user-approved planning direction, not implemented. Catalog/outline generated vectors are ignored local artifacts and are not connected to live resource ranking.
 
 ## Start here
 

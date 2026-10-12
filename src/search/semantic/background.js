@@ -5,6 +5,7 @@ import { semanticConstraintsMatch } from '../hybrid.js';
 import { prepareQuery } from '../rank.js';
 import { resourceText } from './model.js';
 import { openEmbeddingCache } from './cache.js';
+import { associateCourses } from '../associations.js';
 
 let creating;
 let clearing = Promise.resolve();
@@ -24,8 +25,11 @@ async function snapshot() {
   const saved = await chrome.storage.local.get([CACHE_KEY, PIAZZA_CACHE_KEY]);
   const learn = saved[CACHE_KEY] || emptyIndex();
   const piazza = saved[PIAZZA_CACHE_KEY] || emptyIndex();
-  const resources = [[learn, 'LEARN'], [piazza, 'Piazza']].flatMap(([index, source]) => index.accountId
+  const associationKey = `courseAssociations:${JSON.stringify([learn.accountId, piazza.accountId])}`;
+  const confirmations = await chrome.storage.local.get(associationKey);
+  const rawResources = [[learn, 'LEARN'], [piazza, 'Piazza']].flatMap(([index, source]) => index.accountId
     ? index.resources.map((resource) => ({ ...resource, source, accountId: index.accountId })) : []);
+  const resources = associateCourses(learn.courses || [], piazza.courses || [], rawResources, confirmations[associationKey] || {}).resources;
   const fingerprint = JSON.stringify([learn.generation, piazza.generation,
     resources.map((resource) => [resource.source, resource.accountId, resource.id, resource.courseId, resource.modifiedAt, resourceText(resource)])]);
   return { resources, history: { ...learn.history, ...piazza.history }, fingerprint };

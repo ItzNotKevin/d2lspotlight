@@ -1,5 +1,6 @@
 import { EMBEDDING_DIMENSIONS, MODEL_KEY } from './config.js';
 import { courseText } from '../course.js';
+import { resourceContext } from '../context.js';
 
 export { courseDescription } from '../course.js';
 
@@ -12,7 +13,7 @@ export function resourceText(resource, view = 'context') {
   const title = cleanText(resource.title).replace(/\.(?:pdf|docx?|pptx?|html?)$/i, '');
   if (view === 'title') return title || resourceText(resource);
   const values = [title, cleanText(resource.path).slice(0, 800), courseText(resource),
-    cleanText(resource.service), ...(resource.aliases || []).map(cleanText)];
+    cleanText(resource.service), ...(resource.aliases || []).map(cleanText), ...resourceContext(resource).aliases.filter(alias => alias !== 'lecture notes' && alias !== 'lecture slides notes')];
   const seen = new Set();
   return values.filter((value) => {
     if (!value || seen.has(value.toLocaleLowerCase())) return false;

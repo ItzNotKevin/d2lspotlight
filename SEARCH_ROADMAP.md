@@ -38,6 +38,11 @@ A local outline embedding prototype now imports supplied text or structured JSON
 
 ## October 11 implementation update
 
+Latest increment: bidirectional assignment filename aliases have regression coverage; unique
+LEARN/Piazza course codes are associated automatically, with confirmation for duplicates.
+Local MiniLM semantic retrieval is implemented behind a saved UI toggle, with strict filters and
+asynchronous hybrid ranking. See `LOCAL_SEMANTIC_SEARCH.md` for setup and remaining browser checks.
+
 Ranked matching, assignment/course aliases, conservative typo tolerance, and expanded tool-host recognition are now implemented. LEARN refresh performs bounded topic-detail/HTML inspection and stores direct shortcuts for verified empty ordinary link topics and single-link Möbius HTML pages. Instruction-bearing pages and LTI launches retain the LEARN route. See README for refresh/test steps. The later checklists below remain the broader roadmap; full semantic retrieval, arbitrary domains, course associations, and full-text retrieval are not implemented by this update.
 
 ## Recommendation

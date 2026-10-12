@@ -1,6 +1,6 @@
 {
   "name": "d2lspotlight",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,8 @@
     "check:outlines": "node scripts/check-outline-embeddings.mjs",
     "setup:search-models": "node scripts/setup-search-models.mjs",
     "benchmark:search-models": "node scripts/benchmark-search-models.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "check:semantic:extension": "node scripts/check-semantic-extension.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.1",
@@ -28,6 +29,6 @@
   },
   "devDependencies": {
     "linkedom": "^0.18.13",
-    "vite": "7.3.0"
+    "vite": "7.3.7"
   }
 }

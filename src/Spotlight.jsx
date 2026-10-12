@@ -392,7 +392,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                       })}
                       {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setSelectedIndex(0); }}>
                         <option value="">All courses</option>
-                        {courses.filter((course) => !source || (course.id.startsWith('piazza:') ? 'Piazza' : 'LEARN') === source).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                        {courses.filter((course) => !source || resources.some(resource => resource.courseId === course.id && resource.source === source)).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                       </select>}
                     </div>}
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult}

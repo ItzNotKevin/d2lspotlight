@@ -5,6 +5,7 @@ import { CACHE_KEY, emptyIndex, indexMessage } from './learn/cache.js';
 import { REFRESH_INTERVAL, refreshCourses } from './learn/sync.js';
 import { usePiazzaIndex } from './piazza/usePiazzaIndex.jsx';
 import { piazzaIndexMessage } from './piazza/cache.js';
+import { associateCourses } from './search/associations.js';
 
 export function LearnSpotlight(props) {
   const piazza = usePiazzaIndex(props.isOpen);
@@ -15,13 +16,28 @@ export function LearnSpotlight(props) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [storageBytes, setStorageBytes] = useState(null);
   const [semanticEnabled, setSemanticEnabled] = useState(false);
+
+  const [associations, setAssociations] = useState({ key: '', pairs: {} });
+  const associationKey = `courseAssociations:${JSON.stringify([index.accountId, piazza.index.accountId])}`;
+  useEffect(() => {
+    let active = true;
+    chrome.storage.local.get(associationKey).then((saved) => {
+      if (active) setAssociations({ key: associationKey, pairs: saved[associationKey] || {} });
+    }).catch(() => { if (active) setMessage('Saved course associations could not be loaded.'); });
+    const changed = (changes, area) => {
+      if (active && area === 'local' && changes[associationKey]) setAssociations({ key: associationKey, pairs: changes[associationKey].newValue || {} });
+    };
+    chrome.storage.onChanged.addListener(changed);
+    return () => { active = false; chrome.storage.onChanged.removeListener(changed); };
+  }, [associationKey]);
+
   const controller = useRef(null);
   const onLearn = location.origin === LEARN_ORIGIN;
 
   useEffect(() => {
     let active = true;
-    chrome.storage.local.get('semanticSearchEnabled').then((saved) => {
-      if (active) setSemanticEnabled(Boolean(saved.semanticSearchEnabled));
+    chrome.storage.local.get(['semanticSearchEnabled', 'localSemanticSearchEnabled']).then((saved) => {
+      if (active) setSemanticEnabled(Boolean(saved.semanticSearchEnabled ?? saved.localSemanticSearchEnabled));
     }).catch(() => {});
     return () => { active = false; };
   }, []);
@@ -136,9 +152,20 @@ export function LearnSpotlight(props) {
     </div>
   );
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';
-  const resources = React.useMemo(() => [...index.resources.map((resource) => ({ ...resource, source: 'LEARN' })), ...piazza.index.resources], [index.resources, piazza.index.resources]);
+  const combined = React.useMemo(() => associateCourses(index.courses, piazza.index.courses,
+    [...index.resources.map((resource) => ({ ...resource, source: 'LEARN' })), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
-  return <Spotlight {...props} resources={resources} courses={[...index.courses, ...piazza.index.courses]} history={history}
-    demo={false} semanticEnabled={semanticEnabled} connection={<>{connection}{piazza.connection}</>} onResourceOpen={recordOpen}
-    footer={`LEARN + Piazza${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
+
+  return <Spotlight {...props} resources={combined.resources} courses={combined.courses} history={history}
+    semanticEnabled={semanticEnabled}
+    demo={false} connection={<>{connection}{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
+      Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:
+      <select aria-label={`Confirm course association for ${choice.piazza.name}`} value="" onChange={(event) => {
+        const pairs = { ...(associations.key === associationKey ? associations.pairs : {}), [choice.piazza.id]: event.target.value };
+        setAssociations({ key: associationKey, pairs });
+        chrome.storage.local.set({ [associationKey]: pairs }).catch(() => setMessage('Course association could not be saved.'));
+      }}><option value="">{choice.conflictingTerm ? 'Different terms — confirm association' : 'Multiple matches — choose a course'}</option>{choice.learn.map((course) => <option key={course.id} value={course.id}>{course.name} ({course.code || course.id})</option>)}</select>
+    </label>)}</>} onResourceOpen={recordOpen}
+    footer={`v${chrome.runtime.getManifest().version} · LEARN + Piazza${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
+
 }
