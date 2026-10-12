@@ -10,15 +10,17 @@ export function hybridSearch(resources, options, semanticMatches = []) {
   if (!options.query?.trim() || !semanticMatches.length) return searchResources(resources, options);
   const query = prepareSearchQuery(resources, options.query);
   if (!query.words.length) return [];
+  const threshold = Number.isFinite(options.semanticThreshold) && options.semanticThreshold >= 0 && options.semanticThreshold < 1
+    ? options.semanticThreshold : MIN_SIMILARITY;
   const limit = options.limit ?? 100;
   const eligible = new Map(filterResources(resources, options).map((resource) => [resource.id, resource]));
   const candidates = new Map(rankResources(resources, options).map((item) => [item.resource.id, { ...item, semantic: 0 }]));
   for (const match of semanticMatches) {
     const resource = eligible.get(match.id);
-    if (!resource || !Number.isFinite(match.score) || match.score < MIN_SIMILARITY || match.score > 1) continue;
+    if (!resource || !Number.isFinite(match.score) || match.score < threshold || match.score > 1) continue;
     if (!matchesQueryConstraints(resource, query)) continue;
     const item = candidates.get(match.id) || { resource, order: candidates.size, rank: rankResource(resource, query), semantic: 0 };
-    item.semantic = Math.max(item.semantic, (match.score - MIN_SIMILARITY) / (1 - MIN_SIMILARITY));
+    item.semantic = Math.max(item.semantic, (match.score - threshold) / (1 - threshold));
     candidates.set(match.id, item);
   }
   return [...candidates.values()].map((item) => ({ ...item,

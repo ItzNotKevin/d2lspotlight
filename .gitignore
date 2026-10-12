@@ -1,4 +1,6 @@
 node_modules/
 dist/
 semantic-assets/
+benchmark-assets/
+benchmark-results/
 .DS_Store

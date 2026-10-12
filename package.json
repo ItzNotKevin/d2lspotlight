@@ -9,6 +9,8 @@
     "setup:semantic": "node scripts/setup-semantic.mjs",
     "check:semantic": "node scripts/check-semantic.mjs",
     "check:semantic:browser": "node scripts/check-semantic-browser.mjs",
+    "setup:search-models": "node scripts/setup-search-models.mjs",
+    "benchmark:search-models": "node scripts/benchmark-search-models.mjs",
     "test": "node --test"
   },
   "dependencies": {

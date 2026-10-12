@@ -38,6 +38,8 @@ The regression query `combinatorics textbook` retrieves a sparse **Enumeration**
 
 ## Next implementation work
 
+An initial three-model, eight-field screening benchmark is available. See [benchmarks/README.md](benchmarks/README.md); run `npm run setup:search-models` followed by `npm run benchmark:search-models`. Reports contain separate raw and calibrated hybrid rankings and stay in ignored `benchmark-results/`. This does not switch the installed extension's model or cutoff.
+
 1. Collect at least 50 realistic queries with expected resources, including paraphrases, exact identifiers, wrong-course examples, and queries with no relevant answer. Measure keyword versus hybrid top-5 recall and incorrect results.
 2. Tune the provisional similarity threshold (`0.4`) and evaluate candidate models. Similarity is not a probability. This model is a starting baseline, not a final retrieval-quality decision.
 3. Measure cold/warm latency, indexing duration, and memory on realistic course collections. Current requests time out at two minutes; completed embeddings remain cached for retries.
