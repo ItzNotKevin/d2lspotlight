@@ -2,7 +2,9 @@ import { pipeline, env } from '@huggingface/transformers';
 import { MODEL_ID, MAX_RESOURCES, MIN_SIMILARITY } from './config.js';
 import { openEmbeddingCache } from './cache.js';
 import { cacheKey, cosineSimilarity, embeddingFor } from './model.js';
-import { semanticQueryText } from '../rank.js';
+import { courseEmbeddingResource, courseText } from '../course.js';
+import { courseQueryText, semanticQueryText } from '../rank.js';
+import { normalizedCourseScore } from '../intent.js';
 
 env.allowRemoteModels = false;
 env.allowLocalModels = true;
@@ -32,6 +34,16 @@ async function embed(text) {
   return Array.from(output.data);
 }
 
+async function queryEmbedding(text) {
+  let vector = queryVectors.get(text);
+  if (!vector) {
+    vector = await embed(text);
+    queryVectors.set(text, vector);
+    if (queryVectors.size > 32) queryVectors.delete(queryVectors.keys().next().value);
+  }
+  return vector;
+}
+
 async function search(message) {
   const current = () => latest.get(message.client) === message.id;
   if (!current()) throw new Error('Search superseded.');
@@ -39,14 +51,26 @@ async function search(message) {
   const corpus = message.resources.slice(0, MAX_RESOURCES);
   const allowed = new Set(message.allowedIds);
   if (indexedFingerprint !== message.fingerprint) {
-    await cache.prune(new Set(corpus.flatMap((resource) => [cacheKey(resource), cacheKey(resource, 'title')])));
+    await cache.prune(new Set(corpus.flatMap((resource) => [cacheKey(resource), cacheKey(resource, 'title'),
+      ...(courseText(resource) ? [cacheKey(courseEmbeddingResource(resource), 'course')] : [])])));
     const vectors = [];
+    const courses = new Map();
     let completed = 0;
     for (const resource of corpus) {
       if (!current()) throw new Error('Search superseded.');
       const vector = await embeddingFor(resource, { cache, embed });
       const titleVector = await embeddingFor(resource, { cache, embed, view: 'title' });
-      vectors.push({ id: resource.id, vector, titleVector });
+      let courseVector = null;
+      if (courseText(resource)) {
+        const course = courseEmbeddingResource(resource);
+        const key = cacheKey(course, 'course');
+        courseVector = courses.get(key);
+        if (!courseVector) {
+          courseVector = await embeddingFor(course, { cache, embed, view: 'course' });
+          courses.set(key, courseVector);
+        }
+      }
+      vectors.push({ id: resource.id, vector, titleVector, courseVector });
       completed++;
       if (completed % 8 === 0) {
         self.postMessage({ id: message.id, progress: `${completed} of ${corpus.length} resources ready` });
@@ -60,16 +84,15 @@ async function search(message) {
   const candidates = indexedVectors.filter((resource) => allowed.has(resource.id));
   if (!current()) throw new Error('Search superseded.');
   const queryText = semanticQueryText(message.query);
-  let queryVector = queryVectors.get(queryText);
-  if (!queryVector) {
-    queryVector = await embed(queryText);
-    queryVectors.set(queryText, queryVector);
-    if (queryVectors.size > 32) queryVectors.delete(queryVectors.keys().next().value);
-  }
+  const queryVector = await queryEmbedding(queryText);
+  const courseQuery = courseQueryText(message.query);
+  const courseQueryVector = courseQuery ? await queryEmbedding(courseQuery) : null;
   if (!current()) throw new Error('Search superseded.');
-  const matches = candidates.map(({ id, vector, titleVector }) => ({ id,
-    score: Math.max(cosineSimilarity(queryVector, vector), cosineSimilarity(queryVector, titleVector)) }))
-    .filter((match) => match.score >= MIN_SIMILARITY).sort((a, b) => b.score - a.score).slice(0, 100);
+  const courseBoost = (match) => .18 * normalizedCourseScore(match.courseScore);
+  const matches = candidates.map(({ id, vector, titleVector, courseVector }) => ({ id,
+    score: Math.max(cosineSimilarity(queryVector, vector), cosineSimilarity(queryVector, titleVector)),
+    courseScore: courseQueryVector && courseVector ? cosineSimilarity(courseQueryVector, courseVector) : 0 }))
+    .filter((match) => match.score >= MIN_SIMILARITY).sort((a, b) => b.score + courseBoost(b) - a.score - courseBoost(a)).slice(0, 100);
   return { matches, indexed: corpus.length, total: message.resources.length };
 }
 

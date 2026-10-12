@@ -33,7 +33,7 @@ export function normalizeToc(toc, course, accountId) {
           : ['ppt', 'pptx'].includes(extension) ? 'SLIDES' : ['htm', 'html'].includes(extension) ? 'NOTES' : 'LINK';
         resources.set(id, {
           id: `${LEARN_ORIGIN}:${accountId}:${course.id}:${id}`, courseId: course.id,
-          title: String(topic.Title || 'Untitled resource'), course: course.code,
+          title: String(topic.Title || 'Untitled resource'), course: course.code, courseName: course.name || '',
           path: path.join(' / '), type, recent: false,
           // Open through LEARN so linked tools retain their course launch context.
           url: `${LEARN_ORIGIN}/d2l/le/content/${course.id}/viewContent/${id}/View`,

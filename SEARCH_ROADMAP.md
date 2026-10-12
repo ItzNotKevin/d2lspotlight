@@ -6,6 +6,8 @@ Prepared October 3, 2026 from the current code and source research. This is an i
 
 Hybrid search is now the user's next development priority. The opt-in local model, extension-owned worker, account-scoped IndexedDB embeddings, topic-weighted keyword/semantic blending, and reproducible model setup are implemented. Generic resource terms act as mild preferences in subject queries, while exact titles and assignment identities retain priority. Synthetic Node and isolated Chrome checks validate the initial integration. Model selection, threshold tuning, realistic retrieval benchmarks, full-text extraction, and live course validation remain open. See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
 
+Separate query-to-course scoring, broad subject abbreviations, a bundled Waterloo offerings lookup, preserved descriptive course names, and source-update date operators are now implemented. Course scores boost eligible resources without changing their original course associations. These weights and the course cutoff remain provisional; the bundled offerings list covers one undergraduate term, and realistic course/date retrieval validation is still needed.
+
 ## October 11 implementation update
 
 Ranked matching, assignment/course aliases, conservative typo tolerance, and expanded tool-host recognition are now implemented. LEARN refresh performs bounded topic-detail/HTML inspection and stores direct shortcuts for verified empty ordinary link topics and single-link Möbius HTML pages. Instruction-bearing pages and LTI launches retain the LEARN route. See README for refresh/test steps. The later checklists below remain the broader roadmap; full semantic retrieval, arbitrary domains, course associations, and full-text retrieval are not implemented by this update.

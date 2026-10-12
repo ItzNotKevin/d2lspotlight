@@ -47,7 +47,7 @@ export function usePiazzaIndex(isOpen) {
         title: document.title, pageClassId: classFromUrl(location.href), enteredName: courseName || detectPiazzaCourse(document, classId, classFromUrl(location.href)),
         savedName: previous.courses.find((item) => item.id === courseId)?.name
       }) };
-      const resources = normalizePosts(feed.posts, classId).map((post) => ({ ...post, courseId, course: course.name, source: 'Piazza' }));
+      const resources = normalizePosts(feed.posts, classId).map((post) => ({ ...post, courseId, course: course.name, courseName: course.name, source: 'Piazza' }));
       setCourseName(course.name);
       setDiagnostics((entries) => [...entries, { stage: 'course-index', courseName: course.name, postCount: feed.posts.length,
         assignment2Titles: resources.filter((post) => /\b(?:a\s*2|assignment\s*0?2)\b/i.test(post.title)).length }]);

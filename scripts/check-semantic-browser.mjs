@@ -79,6 +79,9 @@ try {
   assert.equal(topicOnly.matches.some((match) => match.id === 'notes'), true, 'The title view should recover the topic without the textbook keyword.');
   const notesQuery = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'notes-query', query: 'combinatorics notes' })})`);
   assert.deepEqual(notesQuery.matches, topicOnly.matches, 'Adding notes must not change the semantic topic being retrieved.');
+  assert.ok(notesQuery.matches[0].courseScore > .5, 'The query must be scored against the Combinatorics course independently.');
+  const latestQuery = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'latest-query', query: 'latest combinatorics notes' })})`);
+  assert.deepEqual(latestQuery.matches, notesQuery.matches, 'Date words must not change the semantic topic being retrieved.');
   const filtered = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'third', allowedIds: ['chemistry'] })})`);
   assert.equal(filtered.matches.length, 0);
   const cacheCount = () => evaluate(`new Promise((resolveCount, reject) => {
@@ -91,12 +94,12 @@ try {
       count.onerror = () => reject(count.error);
     };
   })`);
-  assert.equal(await cacheCount(), 4);
+  assert.equal(await cacheCount(), 6);
   await evaluate('chrome.offscreen.closeDocument()');
   await evaluate(`chrome.offscreen.createDocument({url: 'semantic.html', reasons: ['WORKERS'], justification: 'Validate cached semantic search after a restart.'})`);
   const restarted = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'restarted' })})`);
   assert.deepEqual(restarted.matches, response.matches);
-  assert.equal(await cacheCount(), 4);
+  assert.equal(await cacheCount(), 6);
   const cleared = await evaluate(`chrome.runtime.sendMessage({target: 'semantic-offscreen', action: 'clear'})`);
   assert.equal(cleared.ok, true);
   assert.equal(await cacheCount(), 0);

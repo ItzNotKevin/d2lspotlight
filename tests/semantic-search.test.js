@@ -4,18 +4,18 @@ import { hybridSearch, semanticConstraintsMatch } from '../src/search/hybrid.js'
 import { cacheKey, embeddingFor, cosineSimilarity, courseDescription, resourceText } from '../src/search/semantic/model.js';
 import { searchResources } from '../src/learn/search.js';
 
-const resource = (id, title, extra = {}) => ({ id, title, course: 'MATH 239', courseId: '239',
+const resource = (id, title, extra = {}) => ({ id, title, course: 'ZTEST 239', courseId: '239',
   path: '', type: 'PDF', source: 'LEARN', accountId: 'student-one', ...extra });
 
-test('sparse notes retain meaningful text without encoded course labels or technical field names', () => {
+test('sparse notes gain catalog context without encoded course labels or technical field names', () => {
   const notes = resource('notes', 'Enumeration', { course: 'MATH239_instructor_term_section_1269', path: 'Course Notes' });
-  assert.equal(resourceText(notes), 'Enumeration. Course Notes');
+  assert.equal(resourceText(notes), 'Enumeration. Course Notes. Intro Combinatorics. mathematics');
   assert.equal(resourceText(notes, 'title'), 'Enumeration');
   assert.equal(courseDescription('MATH 239 - Enumeration and Graph Theory'), 'Enumeration and Graph Theory');
   assert.equal(courseDescription('Combinatorics'), 'Combinatorics');
   assert.equal(courseDescription('class123456789'), '');
   assert.equal(courseDescription('CS 246'), '');
-  assert.equal(resourceText({ ...notes, aliases: ['Enumeration', 'course notes'] }), 'Enumeration. Course Notes');
+  assert.equal(resourceText({ ...notes, aliases: ['Enumeration', 'course notes'] }), 'Enumeration. Course Notes. Intro Combinatorics. mathematics');
 });
 
 test('meaning matches recover different wording while exact titles retain priority', () => {

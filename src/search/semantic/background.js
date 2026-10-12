@@ -27,7 +27,7 @@ async function snapshot() {
   const resources = [[learn, 'LEARN'], [piazza, 'Piazza']].flatMap(([index, source]) => index.accountId
     ? index.resources.map((resource) => ({ ...resource, source, accountId: index.accountId })) : []);
   const fingerprint = JSON.stringify([learn.generation, piazza.generation,
-    resources.map((resource) => [resource.source, resource.accountId, resource.id, resourceText(resource)])]);
+    resources.map((resource) => [resource.source, resource.accountId, resource.id, resource.courseId, resource.modifiedAt, resourceText(resource)])]);
   return { resources, history: { ...learn.history, ...piazza.history }, fingerprint };
 }
 

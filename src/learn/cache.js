@@ -30,7 +30,7 @@ export function createIndexStore(storage, key = CACHE_KEY) {
       if (!name || !current.courses.some((course) => course.id === payload.courseId)) throw new Error('Choose an indexed course and enter its name.');
       next = { ...current, generation: crypto.randomUUID(),
         courses: current.courses.map((course) => course.id === payload.courseId ? { ...course, name } : course),
-        resources: current.resources.map((resource) => resource.courseId === payload.courseId ? { ...resource, course: name } : resource) };
+        resources: current.resources.map((resource) => resource.courseId === payload.courseId ? { ...resource, course: name, courseName: name } : resource) };
     } else if (action === 'opened') {
       if (!current.resources.some((item) => item.id === payload.id)) return current;
       const history = { ...current.history, [payload.id]: Date.now() };

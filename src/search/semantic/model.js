@@ -1,21 +1,17 @@
 import { EMBEDDING_DIMENSIONS, MODEL_KEY } from './config.js';
+import { courseText } from '../course.js';
+
+export { courseDescription } from '../course.js';
 
 function cleanText(value) {
   return String(value || '').replace(/[_\s]+/g, ' ').trim();
 }
 
-export function courseDescription(value) {
-  const course = String(value || '').trim();
-  if (/^[a-z0-9]{10,}$/i.test(course) && /\d/.test(course)) return '';
-  return cleanText(course
-    .replace(/\b[a-z]{2,8}\s*\d{2,4}[a-z]?(?:_[a-z0-9]+)+\b/gi, '')
-    .replace(/^\s*[a-z]{2,8}\s*\d{2,4}[a-z]?\b\s*[-:–—]?\s*/i, ''));
-}
-
 export function resourceText(resource, view = 'context') {
+  if (view === 'course') return courseText(resource);
   const title = cleanText(resource.title).replace(/\.(?:pdf|docx?|pptx?|html?)$/i, '');
   if (view === 'title') return title || resourceText(resource);
-  const values = [title, cleanText(resource.path).slice(0, 800), courseDescription(resource.course),
+  const values = [title, cleanText(resource.path).slice(0, 800), courseText(resource),
     cleanText(resource.service), ...(resource.aliases || []).map(cleanText)];
   const seen = new Set();
   return values.filter((value) => {

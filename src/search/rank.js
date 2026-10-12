@@ -1,4 +1,6 @@
 import { normalizeSearchText } from '../services.js';
+import { canonicalSubject, compareResourceDates, dateIntent } from './intent.js';
+import { courseText } from './course.js';
 
 const prepared = new WeakMap();
 const corpora = new WeakMap();
@@ -13,7 +15,7 @@ export function normalizeQuery(value) {
     .replace(/\b([a-z]{2,8})[\s_-]+(\d{2,4}[a-z]?)\b/g, '$1$2')
     .replace(/[^a-z0-9+#]+/g, ' ').trim();
 }
-function tokens(value) { return normalizeQuery(value).split(/\s+/).filter(Boolean); }
+function tokens(value) { return normalizeQuery(value).split(/\s+/).filter(Boolean).map(canonicalSubject); }
 function assignmentIds(value) {
   return [...normalizeSearchText(value).matchAll(/\b(?:a|assignment|assignments|assn|hw|homework)\s*[-#:]?\s*0*(\d+)\b/g)].map((match) => match[1]);
 }
@@ -24,10 +26,10 @@ function prepare(resource) {
   const studyAliases = [];
   if (/\b(?:annotated|lecture|lectures|lec|slides)\b/.test(context)) studyAliases.push('lecture notes');
   if (/\bslides\b/.test(context) || resource.type === 'SLIDES') studyAliases.push('lecture slides notes');
-  const values = [resource.title, resource.service, resource.course, [...(resource.aliases || []), ...studyAliases].join(' '), resource.path, resource.type, resource.destinationHost, resource.source];
+  const values = [resource.title, resource.service, `${resource.course || ''} ${courseText(resource)}`, [...(resource.aliases || []), ...studyAliases].join(' '), resource.path, resource.type, resource.destinationHost, resource.source];
   const fields = values.map((value, i) => ({ text: normalizeQuery(value), words: tokens(value), weight: [12, 11, 10, 9, 6, 5, 4, 4][i] }));
   const titleAssignments = assignmentIds(resource.title);
-  const data = { fields, assignments: titleAssignments.length ? titleAssignments : assignmentIds(resource.path) };
+  const data = { fields, courseWords: tokens(courseText(resource)), assignments: titleAssignments.length ? titleAssignments : assignmentIds(resource.path) };
   prepared.set(resource, data);
   return data;
 }
@@ -51,13 +53,13 @@ export function editDistance(a, b, maximum = 2) {
 }
 
 export function prepareQuery(query) {
-  const text = normalizeQuery(query);
-  const words = [...new Set(text.split(/\s+/).filter((word) => word && !fillers.has(word)))];
+  const { text, dateOrder } = dateIntent(normalizeQuery(query));
+  const words = [...new Set(tokens(text).filter((word) => !fillers.has(word)))];
   const topics = words.filter((word) => !resourceTerms.has(word));
   const assignments = assignmentIds(query);
   const hasTopic = topics.some((word) => !/\d|\+|#/.test(word) && !(assignments.length && word === 'assignment'));
   const preferences = hasTopic ? words.filter((word) => resourceTerms.has(word)) : [];
-  return { text, words, topics: preferences.length ? topics : words, preferences, assignments };
+  return { text, words, topics: preferences.length ? topics : words, preferences, assignments, dateOrder };
 }
 
 export function prepareSearchQuery(resources, query) {
@@ -80,6 +82,33 @@ export function semanticQueryText(query) {
   const parsed = prepareQuery(query);
   const topics = parsed.topics.filter((word) => !/\d|\+|#/.test(word) && !(parsed.assignments.length && word === 'assignment'));
   return topics.length ? topics.join(' ') : parsed.words.join(' ');
+}
+
+export function courseQueryText(query) {
+  const parsed = prepareQuery(query);
+  return parsed.topics.filter((word) => !resourceTerms.has(word) && !/\d|\+|#/.test(word) && !(parsed.assignments.length && word === 'assignment')).join(' ');
+}
+
+export function courseRelevance(resource, query) {
+  const words = query.topics.filter((word) => !resourceTerms.has(word) && !/\d|\+|#/.test(word) && !(query.assignments.length && word === 'assignment'));
+  if (!words.length) return 0;
+  const courseWords = prepare(resource).courseWords;
+  let total = 0;
+  let maximum = 0;
+  for (const word of words) {
+    const weight = query.weights?.get(word) || 1;
+    let match = courseWords.includes(word) ? 1 : courseWords.some((candidate) => candidate.startsWith(word)) ? .8 : 0;
+    if (!match && word.length >= 5) match = courseWords.some((candidate) => candidate.length >= 5 && editDistance(word, candidate, 1) <= 1) ? .5 : 0;
+    total += match * weight;
+    maximum += weight;
+  }
+  return total / maximum;
+}
+
+export function compareDateIntent(a, b, query) {
+  if (!query.dateOrder) return 0;
+  return Number(b.courseRelevance >= .5) - Number(a.courseRelevance >= .5)
+    || compareResourceDates(a.resource, b.resource, query.dateOrder);
 }
 
 export function matchesQueryConstraints(resource, query) {
@@ -126,13 +155,15 @@ export function rankResource(resource, query) {
     topicMaximum += 12 * weight;
     score += best * weight;
   }
-  if (!query.words.length) return null;
-  const exactTitle = data.fields[0].text === query.text;
+  if (!query.words.length && !query.dateOrder) return null;
+  const course = courseRelevance(resource, query);
+  score += 12 * course;
+  const exactTitle = Boolean(query.text) && data.fields[0].text === query.text;
   if (exactTitle) score += 30;
-  else if (data.fields[0].text.startsWith(query.text)) score += 12;
+  else if (query.text && data.fields[0].text.startsWith(query.text)) score += 12;
   const exactIdentifier = exactIdentifierMatch(resource, query);
   return { score, fuzzy, relevance: topicMaximum ? topicScore / topicMaximum : 0,
-    preference: query.preferences?.length ? preferenceScore / query.preferences.length : 0, exactTitle, exactIdentifier };
+    preference: query.preferences?.length ? preferenceScore / query.preferences.length : 0, exactTitle, exactIdentifier, courseRelevance: course };
 }
 
 export function exactIdentifierMatch(resource, query) {

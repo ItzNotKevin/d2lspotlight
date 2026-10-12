@@ -1,4 +1,4 @@
-import { prepareSearchQuery, rankResource } from '../search/rank.js';
+import { compareDateIntent, prepareSearchQuery, rankResource } from '../search/rank.js';
 
 export function filterResources(resources, { courseId = '', source = '', documents = false, recent = false, history = {} } = {}) {
   return resources.filter((resource) => {
@@ -22,5 +22,6 @@ export function rankResources(resources, { query = '', ...filters } = {}) {
   const parsed = prepareSearchQuery(resources, query);
   return filterResources(resources, filters).map((resource, order) => ({ resource, order, rank: rankResource(resource, parsed) }))
     .filter((item) => item.rank)
-    .sort((a, b) => Number(b.rank.exactTitle) - Number(a.rank.exactTitle) || Number(b.rank.exactIdentifier) - Number(a.rank.exactIdentifier) || b.rank.score - a.rank.score || a.order - b.order);
+    .sort((a, b) => compareDateIntent({ ...a, courseRelevance: a.rank.courseRelevance }, { ...b, courseRelevance: b.rank.courseRelevance }, parsed)
+      || Number(b.rank.exactTitle) - Number(a.rank.exactTitle) || Number(b.rank.exactIdentifier) - Number(a.rank.exactIdentifier) || b.rank.score - a.rank.score || a.order - b.order);
 }

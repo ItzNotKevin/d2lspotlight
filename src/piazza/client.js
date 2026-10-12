@@ -1,4 +1,5 @@
 import { extractKnownLinks, isContextLaunch } from '../services.js';
+import { parseResourceDate } from '../search/intent.js';
 
 export function classFromUrl(value) {
   const url = new URL(value);
@@ -118,6 +119,7 @@ export function normalizePosts(posts, classId, toText = plainText) {
     title: (toText(post.subject) || `Post @${post.nr}`).slice(0, 300),
     path: (toText(post.content_snipet || '') || (post.folders || []).map(toText).join(' / ')).slice(0, 500),
     url: `https://piazza.com/class/${classId}?cid=${post.nr}`,
+    modifiedAt: parseResourceDate(post.modified) ?? parseResourceDate(post.updated),
     aliases: [...new Set(links.flatMap((link) => link.aliases))]
     };
     return [resource, ...links.map((link) => ({
