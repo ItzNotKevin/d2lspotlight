@@ -34,7 +34,10 @@ export function useSemanticSearch({ enabled, isOpen, resources, query, courseId,
     return () => {
       active = false;
       clearTimeout(timer);
-      if (sent) chrome.runtime.sendMessage({ type: 'semantic-cancel', requestId }).catch(() => {});
+      if (sent) {
+        try { chrome.runtime.sendMessage({ type: 'semantic-cancel', requestId }).catch(() => {}); }
+        catch { /* Extension was reloaded while this search was pending. */ }
+      }
     };
   }, [enabled, isOpen, resources, query, courseId, source, documents, recent, history]);
   const current = enabled && isOpen && state?.resources === resources && state?.query === query

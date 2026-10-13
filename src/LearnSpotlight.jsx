@@ -1,3 +1,4 @@
+import { subscribeStorageChanges } from './extension-context.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Spotlight } from './Spotlight.jsx';
 import { createLearnClient, LEARN_ORIGIN } from './learn/client.js';
@@ -9,6 +10,7 @@ import { associateCourses } from './search/associations.js';
 
 export function LearnSpotlight(props) {
   const piazza = usePiazzaIndex(props.isOpen);
+  const [version] = useState(() => chrome.runtime.getManifest().version);
   const [index, setIndex] = useState(emptyIndex);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Loading saved resources…');
@@ -27,8 +29,8 @@ export function LearnSpotlight(props) {
     const changed = (changes, area) => {
       if (active && area === 'local' && changes[associationKey]) setAssociations({ key: associationKey, pairs: changes[associationKey].newValue || {} });
     };
-    chrome.storage.onChanged.addListener(changed);
-    return () => { active = false; chrome.storage.onChanged.removeListener(changed); };
+    const unsubscribe = subscribeStorageChanges(changed);
+    return () => { active = false; unsubscribe(); };
   }, [associationKey]);
 
   const controller = useRef(null);
@@ -117,8 +119,8 @@ export function LearnSpotlight(props) {
     const changed = (changes, area) => {
       if (active && area === 'local' && changes[CACHE_KEY]) setIndex(changes[CACHE_KEY].newValue || emptyIndex());
     };
-    chrome.storage.onChanged.addListener(changed);
-    return () => { active = false; controller.current?.abort(); chrome.storage.onChanged.removeListener(changed); };
+    const unsubscribe = subscribeStorageChanges(changed);
+    return () => { active = false; controller.current?.abort(); unsubscribe(); };
   }, [props.isOpen]);
 
   async function clear() {
@@ -166,6 +168,6 @@ export function LearnSpotlight(props) {
         chrome.storage.local.set({ [associationKey]: pairs }).catch(() => setMessage('Course association could not be saved.'));
       }}><option value="">{choice.conflictingTerm ? 'Different terms — confirm association' : 'Multiple matches — choose a course'}</option>{choice.learn.map((course) => <option key={course.id} value={course.id}>{course.name} ({course.code || course.id})</option>)}</select>
     </label>)}</>} onResourceOpen={recordOpen}
-    footer={`v${chrome.runtime.getManifest().version} · LEARN + Piazza${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
+    footer={`v${version} · LEARN + Piazza${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
 
 }

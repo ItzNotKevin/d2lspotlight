@@ -78,7 +78,7 @@ try {
   const topicOnly = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'topic', query: 'combinatorics' })})`);
   assert.equal(topicOnly.matches.some((match) => match.id === 'notes'), true, 'The title view should recover the topic without the textbook keyword.');
   const notesQuery = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'notes-query', query: 'combinatorics notes' })})`);
-  assert.deepEqual(notesQuery.matches, topicOnly.matches, 'Adding notes must not change the semantic topic being retrieved.');
+  assert.equal(notesQuery.matches[0]?.id, 'notes', 'Full-phrase and topic views must retain the relevant resource.');
   assert.ok(notesQuery.matches[0].courseScore > .5, 'The query must be scored against the Combinatorics course independently.');
   const latestQuery = await evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ ...payload, requestId: 'latest-query', query: 'latest combinatorics notes' })})`);
   assert.deepEqual(latestQuery.matches, notesQuery.matches, 'Date words must not change the semantic topic being retrieved.');

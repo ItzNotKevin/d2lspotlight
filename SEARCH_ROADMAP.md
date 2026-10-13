@@ -2,6 +2,8 @@
 
 Prepared October 3, 2026 from the current code and source research. This is an implementation plan; unchecked items are proposed work, not verified capabilities.
 
+Latest update: v0.3.1 connects imported catalog description vectors as bounded course-relevance evidence and compares original sentences alongside topic queries. Special course/topic and professor/annotated mappings are removed. See GENERAL_SEMANTIC_SEARCH.md; real Fall 2026 outline collection and term/section-aware course-context loading are implemented; explicit week-labelled notes now use matched outline weekly topics; PDF content remains pending.
+
 ## Current embedding status and next work — October 12, 2026
 
 This section is the current priority summary. The older milestones below remain broader planning notes; their unchecked boxes do not override the verified work recorded here.
@@ -14,19 +16,19 @@ Completed:
 - [x] Add resumable collection, cached details, token-budget splitting, vector checksums, model/version validation, and reuse of unchanged vectors. Repeat collection reused all 6,467 details; repeat encoding reused all 6,249 vectors.
 - [x] Expand the extension's bundled course title lookup and rebuild it. Existing title-based attribution can use the larger catalog.
 - [x] Create a separate MATH 239 Fall 2026 outline prototype with 22 vectors covering all 13 teaching weeks and explicit reading references.
-- [x] Run 113 passing tests and a successful extension build. The build still reports a large-chunk warning. Check real topic queries across several fields and record weak short-query matches rather than treating coverage as an accuracy guarantee.
+- [x] Run 148 passing tests and a successful extension build. The build still reports a large-chunk warning. Check real topic queries across several fields and record weak short-query matches rather than treating coverage as an accuracy guarantee.
+
+Current completion: catalog and real-outline vectors are connected to live search. All 1,739 discovered Fall 2026 outlines were collected and embedded; 775 have explicit weeks and 1,123 have structured teaching plans. Matching week-labelled notes can retrieve weekly topics with provenance. 148 unit tests, native embedding checks, production build and disposable Chrome integration checks pass. These checks do not establish real-query accuracy or the user's current account integration.
 
 Next, in priority order:
 
-1. **Load the catalog vectors into live search.** Add a versioned bundle loader and worker access, associate the public catalog entries with the user's actual indexed courses, and score the relevant enrolled courses. Keep typing responsive and preserve existing source/account/course filters and observed resource destinations.
-2. **Combine description keyword evidence with course-vector similarity.** Include exact topic matches in descriptions so a query such as `counterpoint` can identify MUSIC 270 despite weak model similarity. Keep course boosts bounded and retain exact resource titles, course codes, and assignment identifiers as strong constraints. Validate ambiguous and no-answer queries across sciences, arts, social sciences, business, and computing before choosing thresholds.
-3. **Collect and normalize outlines in bulk.** Use the calendar subject inventory to drive authenticated subject/term searches or a verified institutional export. Preserve separate term/section versions, publication dates, source evidence, and per-outline collection states. Report coverage and missing outlines explicitly.
-4. **Add outline topic, week, and reading vectors to resource ranking.** Link them to indexed resources only when course, term, section, path, week labels, or named readings provide supporting evidence. A course-level semantic match alone does not establish which document contains a topic.
-5. **Finish refresh and delivery.** Refresh changed catalog/outline versions, retain compatible cached vectors, and decide how users receive the shared public baseline. Shared hosting and Supabase uploads have not been implemented; local bundles are the current output.
+1. **Reproduce real failures.** Validate the user's probability-note query, Piazza `cs246 a2`, and Möbius launch behavior with authorized live accounts; inspect missing metadata, course/term/section ambiguity and filters before tuning scores.
+2. **Evaluate retrieval.** Build a sanitized labelled query set across subjects, including no-answer and wrong-course cases; measure recall, false positives and latency.
+3. **Improve remaining outline layouts.** Work from saved bounded schedule structures, classify the 473 unsupported/prose plans and add source-derived fixtures. Keep lecture/module/date numbers separate from weeks; 100 external referrals need additional source documents.
+4. **Add PDF content search in stages.** Bounded selectable-text extraction with page evidence, local storage, cancellation and keyword snippets first; passage vectors only after validation. OCR remains later work.
+5. **Finish artifact delivery and refresh.** Git excludes generated sources, models and vectors. Document compatible bundle transfer or regeneration, then verify a fresh clone installation. Shared hosting is not implemented.
 
-The immediate implementation task is steps 1 and 2. The baseline is complete for the current calendars, but its precomputed description vectors are not yet used by live Spotlight ranking. Detailed outlines are an additional enrichment layer, and only the supplied MATH 239 outline has been embedded so far. Retired courses outside the selected current calendars are not included in the baseline's coverage claim.
-
-The generated files live under `outline-data/catalog-embeddings/` and `outline-data/math239-fall2026/`. See [COURSE_CATALOG_EMBEDDINGS.md](COURSE_CATALOG_EMBEDDINGS.md) for exact current filenames, commands, and coverage, and [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md) for the outline importer.
+See [handoff.md](handoff.md) for concrete starting files and acceptance checks.
 
 ## October 12 semantic setup update
 

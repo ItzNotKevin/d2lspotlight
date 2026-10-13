@@ -13,6 +13,15 @@ import { parseOutlineQuery } from '../src/search/outlines/query.js';
 
 const countTokens = async (text) => text.split(/\s+/).filter(Boolean).length + 2;
 
+test('reading URLs stay in source metadata without becoming semantic input or oversized token sequences', async () => {
+  const url = `https://books.example/text?tracking=${'x'.repeat(1500)}`;
+  const value = { course: 'TEST 100', title: 'Marketing', term: 'Fall 2026', description: ['Consumer behaviour.'],
+    readings: [{ name: 'Marketing textbook', label: url }] };
+  const chunks = await createOutlineChunks(value, { countTokens });
+  assert.ok(chunks.every(chunk => !chunk.text.includes('https://')));
+  assert.equal(chunks.find(chunk => chunk.kind === 'reading').references[0].label, url);
+});
+
 test('vertical schedules preserve topics and generic reading aliases despite table-of-contents headings', () => {
   const text = `MATH 239
 Fall 2026

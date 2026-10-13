@@ -24,7 +24,7 @@ try {
     }
   } else if (parsed.metadataOnly) matches.push(...entries.map((entry) => ({ ...entry, score: null })));
   console.log(JSON.stringify({ query, results: matches.sort((a, b) => b.score - a.score).slice(0, 5).map((entry) => ({
-    course: entry.course, term: entry.term, kind: entry.kind, week: entry.week, text: entry.text, references: entry.references,
+    course: entry.course, term: entry.term, sections: entry.sections, kind: entry.kind, week: entry.week, dateLabels: entry.dateLabels, text: entry.text, references: entry.references,
     score: Number.isFinite(entry.score) ? Number(entry.score.toFixed(4)) : null, sourceUrl: entry.sourceUrl, evidence: entry.evidence
   })) }, null, 2));
 } finally { await encoder?.close(); }

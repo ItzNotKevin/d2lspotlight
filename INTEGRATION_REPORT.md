@@ -39,3 +39,7 @@ Semantic work waits 120 ms after typing; keyword results remain synchronous. The
 4. Collect labelled real queries, inspect similarity/cutoff rejection, and measure latency before tuning retrieval.
 
 The integration is committed locally for reproducibility; pushing is separate.
+
+## Subsequent implementation status
+
+Catalog and outline bundles have since been regenerated locally and connected to live search. All 1,739 discovered Fall 2026 outlines were captured with structure preserved and embedded; 775 have explicit weeks and 1,123 structured teaching plans. Explicit-week study-note retrieval and stale-context cleanup are implemented. 148 tests, native model checks, build and disposable Chrome smoke checks pass. Generated bundles remain ignored and are not transferred by Git. The live Piazza naming and Möbius account cases, broad retrieval evaluation and PDF extraction remain pending. [handoff.md](handoff.md) is the current work queue; the merge account above is historical.

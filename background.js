@@ -58,6 +58,7 @@ async function toggleSpotlight(tab) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
+      world: "ISOLATED",
       files: ["dist/spotlight.js"]
     });
   } catch (error) {

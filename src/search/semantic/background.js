@@ -29,9 +29,14 @@ async function snapshot() {
   const confirmations = await chrome.storage.local.get(associationKey);
   const rawResources = [[learn, 'LEARN'], [piazza, 'Piazza']].flatMap(([index, source]) => index.accountId
     ? index.resources.map((resource) => ({ ...resource, source, accountId: index.accountId })) : []);
-  const resources = associateCourses(learn.courses || [], piazza.courses || [], rawResources, confirmations[associationKey] || {}).resources;
+  const learnCourses = new Map((learn.courses || []).map(course => [course.id, course]));
+  const resources = associateCourses(learn.courses || [], piazza.courses || [], rawResources, confirmations[associationKey] || {}).resources.map(resource => {
+    const course = learnCourses.get(resource.courseId);
+    return course ? { ...resource, outlineCourseCode: course.code, outlineCourseName: course.name } : resource;
+  });
   const fingerprint = JSON.stringify([learn.generation, piazza.generation,
-    resources.map((resource) => [resource.source, resource.accountId, resource.id, resource.courseId, resource.modifiedAt, resourceText(resource)])]);
+    resources.map((resource) => [resource.source, resource.accountId, resource.id, resource.courseId, resource.modifiedAt,
+      resource.outlineCourseCode, resource.outlineCourseName, resourceText(resource)])]);
   return { resources, history: { ...learn.history, ...piazza.history }, fingerprint };
 }
 

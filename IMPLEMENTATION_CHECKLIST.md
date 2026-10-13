@@ -1,7 +1,7 @@
 # Learn Spotlight implementation checklist
 
 
-Latest update: v0.3.0 implements optional local semantic retrieval, bidirectional assignment aliases, and automatic unambiguous course associations. See [LOCAL_SEMANTIC_SEARCH.md](LOCAL_SEMANTIC_SEARCH.md) for setup, validation, and remaining work. Earlier stages below retain their planning context.
+Latest update: v0.3.1 adds bundled catalog/outline evidence, explicit-week note retrieval, capture-version-4 structural schedule adapters and stale extension-context recovery. 148 tests and production/browser smoke checks pass. See [handoff.md](handoff.md) for current priorities and [OUTLINE_PARSING_RESULTS.md](OUTLINE_PARSING_RESULTS.md) for measured coverage. Earlier stages below retain historical planning context; unchecked historical items are not the current implementation inventory.
 
 Reviewed October 1, 2026 against the README and all current source/configuration files. This is a code review, not a live LEARN integration or browser accessibility test. `npm run build` passes.
 

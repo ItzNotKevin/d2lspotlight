@@ -1,6 +1,6 @@
 {
   "name": "d2lspotlight",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,11 @@
     "setup:search-models": "node scripts/setup-search-models.mjs",
     "benchmark:search-models": "node scripts/benchmark-search-models.mjs",
     "test": "node --test",
-    "check:semantic:extension": "node scripts/check-semantic-extension.mjs"
+    "check:semantic:extension": "node scripts/check-semantic-extension.mjs",
+    "import:catalog": "node scripts/import-catalog-bundle.mjs",
+    "collect:outlines": "node scripts/collect-outlines.mjs",
+    "reparse:outlines": "node scripts/reparse-outlines.mjs",
+    "report:outlines": "node scripts/report-outline-coverage.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.1",

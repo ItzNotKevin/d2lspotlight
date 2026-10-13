@@ -89,6 +89,15 @@ export function semanticQueryText(query) {
   return topics.length ? topics.join(' ') : parsed.words.join(' ');
 }
 
+// Preserve sentence relationships for the model; only explicit operators/identifiers are removed.
+export function semanticNaturalQuery(query) {
+  return String(query || '').replace(/\b(?:latest|newest|most recent|oldest|earliest)\b/gi, ' ')
+    .replace(/\b[a-z]{2,8}[ _-]*\d{2,4}[a-z]?(?=$|[^a-z0-9])/gi, ' ')
+    .replace(/\b(?:a|assignment|assignments|assn|hw|homework)[ _:#-]*0*\d+\b/gi, ' ')
+    .replace(/\b(?:week|wk|chapter|module|unit|page)[ _:#-]*0*\d+\b/gi, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
 export function courseQueryText(query) {
   const parsed = prepareQuery(query);
   return parsed.topics.filter((word) => !resourceTerms.has(word) && !/\d|\+|#/.test(word) && !(parsed.assignments.length && word === 'assignment')).join(' ');

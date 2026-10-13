@@ -23,6 +23,7 @@ export function hybridSearch(resources, options, semanticMatches = []) {
     const item = candidates.get(match.id) || { resource, order: candidates.size, rank: rankResource(resource, query), semantic: 0 };
     item.semantic = Math.max(item.semantic, (match.score - threshold) / (1 - threshold));
     item.courseSemantic = Math.max(item.courseSemantic || 0, normalizedCourseScore(match.courseScore));
+    if (match.outlineWeek) item.outlineWeek = match.outlineWeek;
     candidates.set(match.id, item);
   }
   return [...candidates.values()].map((item) => {
@@ -31,5 +32,6 @@ export function hybridSearch(resources, options, semanticMatches = []) {
       priority: item.rank?.exactTitle ? 2 : exactIdentifierMatch(item.resource, query) ? 1 : 0,
       score: .35 * (item.rank?.relevance || 0) + .65 * item.semantic + .03 * resourcePreference(item.resource, query) + .18 * course };
   }).sort((a, b) => compareDateIntent(a, b, query) || b.priority - a.priority || b.score - a.score || (b.rank?.score || 0) - (a.rank?.score || 0) || a.order - b.order)
-    .slice(0, limit).map(({ resource, rank }) => rank ? resource : { ...resource, semanticMatch: true });
+    .slice(0, limit).map(({ resource, rank, outlineWeek }) => ({ ...resource,
+      ...(!rank ? { semanticMatch: true } : {}), ...(outlineWeek ? { outlineWeek } : {}) }));
 }

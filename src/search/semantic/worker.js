@@ -3,7 +3,7 @@ import { MODEL_ID, MAX_RESOURCES, MIN_SIMILARITY } from './config.js';
 import { openEmbeddingCache } from './cache.js';
 import { cacheKey, cosineSimilarity, embeddingFor } from './model.js';
 import { courseEmbeddingResource, courseText } from '../course.js';
-import { courseQueryText, semanticQueryText } from '../rank.js';
+import { courseQueryText, semanticQueryText, semanticNaturalQuery } from '../rank.js';
 import { normalizedCourseScore } from '../intent.js';
 
 env.allowRemoteModels = false;
@@ -17,6 +17,10 @@ env.backends.onnx.wasm.wasmPaths = {
 env.backends.onnx.wasm.numThreads = 1;
 env.backends.onnx.wasm.proxy = false;
 
+import { loadCatalogBundle } from '../catalog/live.js';
+import { loadOutlineBundle, courseEvidenceScore, resourceWeekEvidence } from '../outlines/live.js';
+let catalog;
+let outlines;
 let extractor;
 let cache;
 let queue = Promise.resolve();
@@ -85,15 +89,35 @@ async function search(message) {
   if (!current()) throw new Error('Search superseded.');
   const queryText = semanticQueryText(message.query);
   const queryVector = await queryEmbedding(queryText);
+  const naturalText = semanticNaturalQuery(message.query);
+  const naturalVector = naturalText && naturalText !== queryText ? await queryEmbedding(naturalText) : queryVector;
+  catalog ||= loadCatalogBundle(fetch, path => new URL('/' + path, self.location.href).href).catch(() => null);
+  outlines ||= loadOutlineBundle(fetch, path => new URL('/' + path, self.location.href).href).catch(() => null);
+  const courseCatalog = await catalog;
+  const courseOutlines = await outlines;
+  const resourceById = new Map(corpus.map(resource => [resource.id, resource]));
   const courseQuery = courseQueryText(message.query);
   const courseQueryVector = courseQuery ? await queryEmbedding(courseQuery) : null;
   if (!current()) throw new Error('Search superseded.');
   const courseBoost = (match) => .18 * normalizedCourseScore(match.courseScore);
-  const matches = candidates.map(({ id, vector, titleVector, courseVector }) => ({ id,
-    score: Math.max(cosineSimilarity(queryVector, vector), cosineSimilarity(queryVector, titleVector)),
-    courseScore: courseQueryVector && courseVector ? cosineSimilarity(courseQueryVector, courseVector) : 0 }))
+  const evidenceScores = new Map();
+  const evidenceScore = resource => {
+    const key = JSON.stringify([resource.source, Boolean(resource.sourceCourseId), resource.outlineCourseCode,
+      resource.outlineCourseName, resource.course, resource.courseName]);
+    if (!evidenceScores.has(key)) evidenceScores.set(key, courseEvidenceScore(resource, [queryVector, naturalVector], courseOutlines, courseCatalog));
+    return evidenceScores.get(key);
+  };
+  const matches = candidates.map(({ id, vector, titleVector, courseVector }) => {
+    const resource = resourceById.get(id);
+    const titleScore = Math.max(cosineSimilarity(queryVector, vector), cosineSimilarity(queryVector, titleVector), cosineSimilarity(naturalVector, vector), cosineSimilarity(naturalVector, titleVector));
+    const week = resourceWeekEvidence(resource, [queryVector, naturalVector], courseOutlines);
+    return { id, score: Math.max(titleScore, week?.score || 0),
+      outlineWeek: week && week.score > titleScore ? { week: week.week, sourceUrl: week.sourceUrl } : undefined,
+      courseScore: Math.max(courseQueryVector && courseVector ? cosineSimilarity(courseQueryVector, courseVector) : 0, evidenceScore(resource)) };
+  })
     .filter((match) => match.score >= MIN_SIMILARITY).sort((a, b) => b.score + courseBoost(b) - a.score - courseBoost(a)).slice(0, 100);
-  return { matches, indexed: corpus.length, total: message.resources.length };
+  return { matches, indexed: corpus.length, total: message.resources.length, catalogCourses: Object.keys(courseCatalog?.courses || {}).length,
+    outlineCourses: Object.keys(courseOutlines?.courses || {}).length };
 }
 
 self.onmessage = ({ data }) => {

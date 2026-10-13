@@ -132,7 +132,7 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.service && <span>{resource.service}</span>}
           {resource.directLink && <span>Opens directly</span>}
           {fuzzy && <span>Similar spelling</span>}
-          {resource.semanticMatch && <span>Related meaning</span>}
+          {resource.outlineWeek ? <span title="Topics inferred from the course outline’s weekly plan; document contents have not been read.">Outline suggests Week {resource.outlineWeek.week}</span> : resource.semanticMatch && <span>Related meaning</span>}
           <span className="ls-row-path"><HighlightText text={resource.path} query={query} /></span>
         </span>
       </span>

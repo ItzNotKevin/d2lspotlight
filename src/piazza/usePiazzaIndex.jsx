@@ -1,3 +1,4 @@
+import { subscribeStorageChanges } from '../extension-context.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { emptyIndex } from '../learn/cache.js';
 import { PIAZZA_CACHE_KEY, piazzaIndexMessage } from './cache.js';
@@ -84,8 +85,8 @@ export function usePiazzaIndex(isOpen) {
     const changed = (changes, area) => {
       if (active && area === 'local' && changes[PIAZZA_CACHE_KEY]) setIndex(changes[PIAZZA_CACHE_KEY].newValue || emptyIndex());
     };
-    chrome.storage.onChanged.addListener(changed);
-    return () => { active = false; controller.current?.abort(); chrome.storage.onChanged.removeListener(changed); };
+    const unsubscribe = subscribeStorageChanges(changed);
+    return () => { active = false; controller.current?.abort(); unsubscribe(); };
   }, [isOpen]);
 
   async function clear() {

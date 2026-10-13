@@ -1,29 +1,36 @@
-# Local outline embedding prototype
+# Real outline collection and local embeddings
 
 The development importer turns UTF-8 outline text or structured JSON into reusable course, topic, weekly, and reading embeddings. It uses the same pinned MiniLM model as the extension, with native CPU inference, mean pooling, normalization, and 384 dimensions. It runs without remote model loading or course-data uploads.
 
-This prototype produces a local data bundle and a command-line search preview. It is not yet connected to Spotlight's resource ranking. Automated collection from Outline, live resource associations, shared hosting, and browser loading of these bundles remain separate work.
+The collector reads real term-specific outlines through your signed-in Chrome viewer. The embedding pipeline produces a local bundle and a command-line search preview. Builds package the bundle for Spotlight, where a uniquely matched course/term/section outline replaces calendar context in the bounded course-relevance boost. For study notes with an explicit week number, the worker also compares the query against that week’s topic vectors in the uniquely matched outline. This can retrieve a generic filename such as `week_05_annotated`; the result is labelled “Outline suggests Week 5.” It is evidence from the planned schedule, not verification of PDF contents. Document passage extraction remains separate work.
 
 [The course catalog baseline pipeline](COURSE_CATALOG_EMBEDDINGS.md) provides a separate vector layer for every entry in the current undergraduate and graduate calendars, including courses whose outline has not yet been collected.
 
-## Bulk collection findings
+## Current collection — October 12, 2026
 
-The signed-in Chrome viewer was inspected on October 12, 2026. Its Browse Outlines page supports a full course code or a subject/term combination; the UI gives `PSYCH 101` and `PSYCH F22` as examples. Submitting an empty search did not reveal the repository. A subject alone (`MATH`) and a term alone (`F26`) triggered the full-course-or-subject/term instruction.
+Authenticated discovery searched all 156 subjects from the current calendar inventory for Fall 2026 and found 1,739 distinct outline URLs. This is a term-specific viewer inventory, not a guarantee that every university course publishes an outline. Completed locally: **1,739 outlines captured and embedded, 1,682 course codes, zero failed subjects/captures, 36,812 unique vectors**. All captures use version 4. There are 775 explicit weekly plans (44.57%), 1,123 structured teaching plans (64.58%), and 1,089 plans with topic text (62.62%). 4,859 weekly entries retain date labels. Residual schedule text remains in 1,542 outlines, including parsed plans. See [OUTLINE_PARSING_RESULTS.md](OUTLINE_PARSING_RESULTS.md) for definitions and limitations. Coverage is recorded in `outline-data/collected/F26/coverage.json`; collection progress is in `collection.json`.
 
-Searching `MATH F26` returned 42 outline rows in one rendered table, with term, course code, title, section range, and a View link for each row. No pagination or bulk-export control was visible in that result. This establishes a subject/term discovery route, not a verified total for the university or a guarantee that every larger result is unpaginated. The site explicitly says not all courses use Outline.
+The calendar and outlines serve different purposes. A matching real outline takes precedence; the calendar supplies fallback context when an outline is missing, the resource term is unknown, or its section cannot be matched uniquely. They are never added together as two course-evidence boosts. Keep the single calendar bundle for that fallback. Never substitute a different section or term's schedule.
 
-Opening [MATH 103 Fall 2026](https://outline.uwaterloo.ca/viewer/view/njf248) showed the outline even though the page said the signed-in student was not enrolled in its sections. It exposed a latest publication date, Revision History, Save a Local Copy, course description, learning outcomes, a 13-week table, and readings. The weekly table had separate Content, Tutorial, and Written Assignment columns, so collection must retain table structure rather than flatten all columns into topic text. The local-copy download did not complete through the browser tool, and subsequent Chrome calls failed to load the browser access policy. Its file format remains unverified. No new outline contents were imported or embedded during this inspection.
+## Collect and build
 
-The collection workflow should:
+On macOS, open a signed-in `https://outline.uwaterloo.ca/viewer/` tab in Chrome. Enable **View → Developer → Allow JavaScript from Apple Events**. The collector uses observed read-only viewer search/detail routes with the browser's existing session; it does not export cookies or save authentication tokens.
 
-1. Search each actual subject for a selected term through the signed-in viewer. Start with Fall 2026 for a current-term pilot and record the query, result rows, and collection timestamp.
-2. Queue every observed View URL. Deduplicate by outline ID, not course code: MATH 127, 128, 137, 145, and other courses returned separate outlines for different sections. Preserve their titles, terms, and section ranges.
-3. Read each outline through the authenticated browser, preserving heading boundaries and table columns. Record the published date and explicit source URL. Use the local-copy export only after verifying its format; a structured DOM capture can supply the existing JSON importer independently of that download.
-4. Save a resumable local collection index with per-outline states for discovered, captured, normalized, embedded, unavailable, and failed. Treat expired sign-in as a paused collection rather than missing course data. Do not guess outline IDs or undisclosed API endpoints.
-5. Normalize and validate each capture. Keep course topics, outcomes, readings, and explicit week associations; leave policy and contact sections out of embedding inputs. Report unsupported layouts and missing weekly plans separately from collection failures.
-6. Supply the complete normalized JSON collection to `embed:outlines` for a replacement bundle. Reuse unchanged vectors, and retain section-specific outlines when associating vectors with a user's resources.
+```sh
+npm run collect:outlines -- --term F26
+npm run embed:outlines -- outline-data/collected/F26/outlines.json
+node scripts/report-outline-coverage.mjs outline-data/collected/F26
+npm run build
+npm run search:outlines -- outline-data/embeddings "stat230 week 5"
+```
 
-The current undergraduate and graduate calendar inventory can seed subject discovery. It covers those published calendars, rather than every historical subject ever offered. A claim of complete outline coverage still needs a collection report for every subject/term searched. Current browser inspection confirms only the MATH Fall 2026 result and the MATH 103 detail page; it does not verify a student-accessible institutional API or one-click export of all outlines.
+Collection resumes from its checkpoint when rerun, skipping captures from the current adapter version and retrying failures. Use `--refresh` to recapture changed published outlines. `--subjects STAT,CS,MATH` limits discovery; default discovery uses the current calendar subjects. `--outline nc3jfs` refreshes only an already-discovered outline (comma-separated IDs are supported); `--out DIRECTORY` changes the source output location. Embedding's default output `outline-data/embeddings` is the bundle the build consumes. Do not run an isolated Chrome test during collection; macOS Apple Events can lose its connection when that test browser exits. The helper reconnects if macOS reports that Chrome is not running. Close the Outline tab or disable Apple Events after collection if desired.
+
+Sources are normalized into one JSON file per outline; `outlines.json` is the derived bulk embedding input. Raw HTML, contact sections and policy text are not stored as another searchable corpus. Course descriptions, outcomes, readings and weekly topics retain source URLs and evidence. Schedules that cannot be parsed stay as source text and receive a warning; they can contribute topic context but do not create week associations. Authentication failures stop collection rather than marking courses absent. Shared hosting is not implemented.
+
+## Verified viewer routes
+
+The viewer's own JavaScript uses `GET /viewer/api/search/?q=SUBJECT%20TERM`. Searches return term, course codes, section labels and observed `/viewer/view/<id>` URLs. The collector only reads those two route families; it does not use author/admin exports, guess outline IDs, or access account tokens. A batch has at most three fetch workers, each pausing between requests. Every completed batch checkpoints normalized records locally.
 
 ## Generate a bundle
 
@@ -41,7 +48,7 @@ Generated bundles contain:
 - `manifest.json`: extracted outline data, publication metadata, warnings, source evidence, the exact text and token count of each chunk, reading references, model signature, text hashes, and vector indices.
 - `vectors-<hash>.f32`: unique normalized vectors stored as little-endian float32 values, with a checksum in the manifest.
 
-The default output is `outline-data/embeddings`. The entire `outline-data/` directory is ignored by Git and is not copied into the extension build. Use it for imported source files as well as generated data. Changing a bundle creates a new content-addressed vector file; older vector files are retained. The manifest points to the current file.
+The default output is `outline-data/embeddings`. The entire `outline-data/` directory is ignored by Git. The build verifies and copies the compact runtime manifest and current vectors from `outline-data/embeddings` into `dist/outlines`; source captures stay outside the build. Use it for imported source files as well as generated data. Changing a bundle creates a new content-addressed vector file; obsolete generated vector files are removed after a successful manifest update. The manifest points to the current file.
 
 ## What is extracted
 
@@ -51,9 +58,9 @@ Reading aliases come from definitions inside the document, such as `COUNT=Counti
 
 Administrative policies, contact details, class meeting locations, and grading sections are excluded from the embedding sections. Course code, term, section numbers, week numbers, date labels, and reading-section citations are retained as metadata instead of being added to every vector's text. Weekly topics include the human course title and names of explicitly associated readings.
 
-The course overview uses the first description paragraph and learning outcomes. If these are absent, it uses available topic or weekly text. Other description paragraphs, outcomes, topic sections, weeks, and named readings receive their own focused views. Long text is split at sentence boundaries, with word-based splitting for oversized sentences. Every final input is measured with the actual model tokenizer and must fit within 256 tokens, including its repeated course context and special tokens. The text is not silently truncated.
+The course overview uses the first description paragraph and learning outcomes. If these are absent, it uses available topic or weekly text. Other description paragraphs, outcomes, topic sections, weeks, and named readings receive their own focused views. Long text is split at sentence boundaries, with word-based splitting for oversized sentences. Every final input is measured with the actual model tokenizer and must fit within 256 tokens, including its repeated course context and special tokens. The text is not silently truncated. URLs and tracking parameters stay in source/reading metadata rather than semantic input (`outline-v2`).
 
-An unsupported schedule layout produces a warning and no invented weekly associations. Missing terms also produce a warning; resource associations must verify the term separately. The text importer is a first set of layout adapters, not a universal outline reader. PDF extraction, OCR, HTML import, assessment extraction, and arbitrary prose-to-resource inference are not included.
+An unsupported schedule layout produces a warning and no invented weekly associations. Missing terms also produce a warning; resource associations must verify the term separately. The text importer is a first set of layout adapters, not a universal outline reader. PDF extraction, OCR, assessment extraction, and arbitrary prose-to-resource inference are not included. Authenticated HTML viewer collection is implemented separately by the collector.
 
 ## Structured input
 
@@ -93,4 +100,39 @@ Unit checks cover diverse heading and schedule layouts, generic/named reading re
 
 The supplied MATH 239 Fall 2026 text has also been processed locally. Its bundle is at `outline-data/math239-fall2026`. It contains 22 vectors including all 13 teaching weeks. Preview searches for recurrence relations retrieve Week 5 with Enumeration reading sections 3.2, 3.3, and 4.1; Hall's theorem retrieves Week 13 with Graph Theory section 8.6. The binary vectors occupy 33 KiB; the manifest adds extracted text and metadata. A second unchanged import reuses all 22 vectors.
 
-The preview applies exact course-code and week constraints and uses a provisional `0.4` similarity cutoff for topic queries. Week operators stay out of semantic query text. Metadata-only searches such as `MATH239 week 5` return matching chunks without running query inference and display a null similarity score. It returns outline chunks and their references, not LEARN resources or guaranteed document contents. Course/term/section matching and evidence-based mapping to users' resource IDs are the next integration step.
+The preview applies exact course-code and week constraints and uses a provisional `0.4` similarity cutoff for topic queries. Week operators stay out of semantic query text. Metadata-only searches such as `MATH239 week 5` return matching chunks without running query inference and display a null similarity score. It returns outline chunks and their references, not LEARN resources or guaranteed document contents. Live Spotlight performs course/term/section matching and can associate explicitly week-labelled study notes with the matching weekly topic vectors. Dated schedules now contribute course context. Calendar-to-week mapping, lecture-number filename associations, named-reading matching and PDF passage verification remain separate work.
+
+## Headerless schedule tables
+
+The parser supports two-column tables with repeated explicit `W`, `Wk` or `Week` labels, even without column headings. It preserves dates from labels such as `W2 - Sep 14 & 16` and merges blank-week continuation rows into the preceding teaching week. Cancelled lectures, reading weeks, makeup days and other unmatched rows remain in unparsed schedule text. Unnumbered sessions do not receive guessed week numbers. Headerless tables with extra columns require evidence for their column roles; ambiguous layouts remain unparsed.
+
+The ACTSC 363 outline `nc3jfs` was refreshed with this parser: 11 teaching weeks (W2–W12), with continued topics correctly retained for W2 and W4. All 1,739 captures have now been refreshed with adapter version 4 and re-embedded.
+
+## Weekly topic retrieval in Spotlight
+
+The build preserves vector indices for each parsed teaching week. For a note such as `week_05_annotated`, the worker first verifies the course, term and unambiguous outline section, then compares the query against Week 5’s topic vectors. Its inferred-topic similarity is discounted by 10% and can qualify the resource for semantic retrieval before the bounded course bonus is applied. Hard course, week and assignment constraints still apply; assignments are not reclassified as lecture notes. Unknown terms, ambiguous outlines, missing weekly plans and lecture numbers without explicit week labels receive no weekly inference.
+
+Actual STAT 230 Fall 2026 section 001 Week 5 embedding input:
+
+```text
+Probability. Discrete Random Variables, Probability Mass Functions, Cumulative Distribution Functions, Functions of a Random Variable
+```
+
+The course code, Fall 2026, sections, Week 5, `Oct. 5 - 9`, citations and source URL accompany the chunk as metadata. The vector represents the quoted topic text. Course overview, individual descriptions/outcomes, recognized topic sections, retained unparsed schedules and named readings also get separate focused chunks. Dedicated contact, location, grading and policy sections are excluded; inline administrative wording inside retained schedule/topic paragraphs can still be present.
+
+Enable meaning search and test `probability mass functions notes` after rebuilding/reloading the extension and reloading your LEARN/Piazza tabs. A saved STAT 230 Week 5 note in the matching term/section should be retrieved; related weeks can also appear. “Outline suggests Week 5” denotes an inference, not text extracted from the file.
+
+## Structured schedule extraction — October 12, 2026
+
+The collector preserves a bounded tentative-plan DOM representation: paragraph boundaries, links, cells and merged-cell geometry. Offline structural adapters extract explicit weeks and typed lecture/module/unit/chapter/dated/topic entries, preserving source evidence, references, events and external schedule referrals. Nonweek topic entries create `schedule` chunks for course context; resource-number inference still uses explicit weeks only. Reference-only entries do not create topic vectors.
+
+All 1,739 outlines were recollected with capture version 4, with zero failures. Weekly coverage increased from 497 (28.6%) to 775 (44.6%); structured teaching coverage is 1,123 (64.6%), including 1,089 plans with topic text. No previously weekly-parsed outline lost all its weeks. The rebuilt bundle has 36,812 unique vectors (56,543,232 bytes), with 16,395 generated and 20,417 reused. See [OUTLINE_PARSING_RESULTS.md](OUTLINE_PARSING_RESULTS.md) for remaining classifications and validation.
+
+```sh
+npm run reparse:outlines
+npm run report:outlines
+npm run embed:outlines -- outline-data/collected/F26/outlines.json
+npm run build
+```
+
+Reparsing uses saved source structures without another authenticated collection. Embedding and building are required after parser changes to refresh Spotlight's packaged evidence.

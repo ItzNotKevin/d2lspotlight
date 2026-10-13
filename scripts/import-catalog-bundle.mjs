@@ -1,0 +1,12 @@
+import { cp, mkdir } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import { readCatalogBundle } from './catalog-runtime.mjs';
+const manifest = process.argv[2];
+if (!manifest) throw new Error('Usage: npm run import:catalog -- /path/to/manifest.json');
+const source = dirname(resolve(manifest));
+const { manifest: data, vectors } = await readCatalogBundle(source);
+const target = resolve('outline-data/catalog-embeddings');
+await mkdir(target, { recursive: true });
+await cp(resolve(source, data.vectorFile), resolve(target, data.vectorFile));
+await cp(resolve(source, 'manifest.json'), resolve(target, 'manifest.json'));
+console.log(`Verified and imported ${data.courses.length} courses and ${vectors.length} vectors. Run npm run build.`);

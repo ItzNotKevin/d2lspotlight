@@ -4,7 +4,15 @@ The catalog pipeline collects every course entry returned by the current public 
 
 This inventory covers the selected current calendars, including courses not scheduled in the upcoming term. It is not an inventory of every retired course ever offered. Outline topics, teaching weeks, readings, and section-specific content remain a separate enrichment layer.
 
-## Status and next step
+## Current local status — v0.3.1
+
+This file describes **academic-calendar** course descriptions, not collected course outlines. The local manifest lists the 2026-2027 undergraduate calendar and Fall 2026 graduate calendar, both using the public Kuali calendar feed. Regeneration from the uploaded manifest produced 6,494 chunks and 6,249 unique vectors covering 6,467 courses. The build now packages this optional bundle; the worker uses description-vector similarity as a bounded course-relevance bonus. The resource must still qualify by keyword or resource-level semantic matching.
+
+Real Fall 2026 outline discovery found 1,739 distinct URLs across 156 subjects. The generated outline-coverage.json records captured/embedded outlines by course, term and section. A uniquely matched outline replaces the calendar course-context boost; the calendar remains a fallback for missing or ambiguous matches. Explicit week-labelled study notes can use the matching outline’s weekly topics for retrieval; PDF extraction and nonweek resource-number associations remain unimplemented. See OUTLINE_EMBEDDINGS.md and GENERAL_SEMANTIC_SEARCH.md.
+
+The sections below preserve the friend's earlier collection report. Paths on /Users/kevinli and prototype artifacts describe that machine, not files guaranteed to exist in this checkout.
+
+## Earlier status and next step
 
 Completed: all 6,467 current-calendar courses have descriptions and baseline vectors; the expanded title lookup is rebuilt into the extension; collection and encoding reuse are verified; 113 tests and the extension build pass. The supplied MATH 239 outline has a separate 22-vector prototype. No additional outlines have been embedded.
 
@@ -26,7 +34,7 @@ The current files are inside `/Users/kevinli/d2lspotlight/`:
 
 The `.f32` files are binary little-endian float32 vectors, not readable text. Use the accompanying `manifest.json` to inspect what was embedded and where each vector is stored, or use the CLI preview below. The hash in each vector filename changes when its contents change; the manifest's `vectorFile` field always identifies the active file.
 
-These artifacts are local, ignored by Git, and not uploaded to Supabase. The precomputed vectors are not included in the extension build or connected to live ranking yet. The bundled title lookup is already part of the rebuilt extension.
+These artifacts are local, ignored by Git, and not uploaded to Supabase. Since v0.3.1, a locally imported compatible catalog bundle is copied into the extension build and connected as a bounded course-relevance bonus. The bundled title lookup is already part of the rebuilt extension.
 
 ## Collect and embed
 

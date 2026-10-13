@@ -1,9 +1,10 @@
 import { normalizeOutline } from './extract.js';
 
-export const OUTLINE_ENCODING_VERSION = 'outline-v1';
+export const OUTLINE_ENCODING_VERSION = 'outline-v2';
 export const OUTLINE_MAX_TOKENS = 256;
 
-const clean = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+// URL identifiers and tracking parameters are metadata, not semantic topic words.
+const clean = (text) => String(text || '').replace(/https?:\/\/\S+/gi, ' ').replace(/\s+/g, ' ').trim();
 
 async function splitOversized(text, prefix, countTokens, maximum) {
   const words = text.split(/\s+/);
@@ -65,13 +66,18 @@ function outlineSegments(outline) {
   outline.description.forEach((paragraph) => add('topic', 'Course description', paragraph, outline.evidence.description || { heading: 'Course description' }));
   outline.outcomes.forEach((paragraph) => add('topic', 'Learning outcomes', paragraph, outline.evidence.outcomes || { heading: 'Learning outcomes' }));
   outline.topics.forEach((topic) => add('topic', topic.heading, topic.text, topic.evidence));
+  outline.unparsedSchedule.forEach((text) => add('topic', 'Unparsed course schedule', text, outline.evidence.weeks));
   outline.weeks.forEach((week) => {
     const names = [...new Set(week.references.filter((reference) => reference.resolved).map((reference) => reference.name).filter(Boolean))];
-    add('week', 'Weekly topics', `${week.topics}${names.length ? `. Reading: ${names.join('; ')}` : ''}`, week.evidence,
+    if (week.topics) add('week', 'Weekly topics', `${week.topics}${names.length ? `. Reading: ${names.join('; ')}` : ''}`, week.evidence,
       { week: week.week, dateLabels: week.dateLabels, references: week.references });
     week.references.filter((reference) => !reference.resolved && /notes|supplement|slides|reading|chapter|textbook/i.test(reference.citation))
       .forEach((reference) => add('reading', 'Referenced material', reference.citation, week.evidence,
         { week: week.week, references: [reference] }));
+  });
+  (outline.scheduleEntries || []).filter(entry => entry.kind !== 'week').forEach(entry => {
+    add('schedule', 'Teaching topics', entry.topics, entry.evidence,
+      { scheduleKind: entry.kind, entryNumber: entry.number, dateLabels: entry.dateLabels, references: entry.references });
   });
   outline.readings.forEach((reading) => add('reading', 'Course reading', [reading.name, reading.title, reading.label].filter(Boolean).join('. '),
     reading.evidence || { heading: 'Course readings' }, { references: [{ ...reading, resolved: true }] }));
@@ -82,7 +88,7 @@ export async function createOutlineChunks(value, { countTokens, maximum = OUTLIN
   const outline = normalizeOutline(value);
   const chunks = [];
   const duplicates = new Set();
-  const genericHeadings = new Set(['course overview', 'course description', 'learning outcomes', 'referenced material', 'course reading', 'topics', 'weekly topics']);
+  const genericHeadings = new Set(['course overview', 'course description', 'learning outcomes', 'referenced material', 'course reading', 'topics', 'weekly topics', 'teaching topics']);
   for (const [index, segment] of outlineSegments(outline).entries()) {
     const prefix = `${outline.title}.${genericHeadings.has(segment.heading.toLowerCase()) ? '' : ` ${segment.heading}.`}`;
     const bodies = await splitOutlineText(segment.body, prefix, countTokens, maximum);

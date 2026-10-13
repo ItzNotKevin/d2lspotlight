@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, open, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, open, unlink, readdir } from 'node:fs/promises';
 import { resolve, extname, basename } from 'node:path';
 import { extractOutline, normalizeOutline } from '../src/search/outlines/extract.js';
 import { createOutlineChunks, OUTLINE_MAX_TOKENS } from '../src/search/outlines/chunks.js';
@@ -29,6 +29,7 @@ const outlines = [];
 const identities = new Set();
 for (const path of inputs) {
   const text = await readFile(path, 'utf8');
+  const sourceHash = hash(text);
   const data = extname(path).toLowerCase() === '.json' ? JSON.parse(text) : null;
   const values = data ? Array.isArray(data) ? data : Array.isArray(data.outlines) ? data.outlines : [data] : [extractOutline(text, overrides)];
   if (values.length > 1 && Object.keys(overrides).length) throw new Error('Metadata overrides cannot be applied to multiple outlines in a JSON file.');
@@ -38,7 +39,7 @@ for (const path of inputs) {
     const versionKey = `${normalized.id}@${versionHash}`;
     if (identities.has(versionKey)) continue;
     identities.add(versionKey);
-    outlines.push({ ...normalized, versionHash, versionKey, inputName: basename(path), inputHash: hash(text) });
+    outlines.push({ ...normalized, versionHash, versionKey, inputName: basename(path), inputHash: sourceHash });
   }
 }
 if (!outlines.length) throw new Error('The import contains no outlines.');
@@ -88,9 +89,12 @@ try {
   const vectorFileHash = hash(bytes);
   const vectorFile = `vectors-${vectorFileHash.slice(0, 20)}.f32`;
   await writeFile(resolve(output, vectorFile), bytes);
-  await atomicJson(resolve(output, 'manifest.json'), { version: 1, createdAt: new Date().toISOString(), encoder: encoder.signature,
+  await atomicJson(resolve(output, 'manifest.json'), { version: 1, kind: 'course-outlines', createdAt: new Date().toISOString(), encoder: encoder.signature,
     maximumTokens: OUTLINE_MAX_TOKENS, outlines, chunks, vectorHashes, vectorFile, vectorFileHash,
     statistics: { outlines: outlines.length, chunks: chunks.length, generated, reused, vectorBytes: bytes.byteLength, processingMs: Math.round(performance.now() - began) } });
+  for (const name of await readdir(output)) {
+    if (/^vectors-[a-f0-9]{20}\.f32$/.test(name) && name !== vectorFile) await unlink(resolve(output, name));
+  }
   console.log(`Saved ${vectors.length} vectors (${bytes.byteLength} bytes): ${generated} generated, ${reused} reused. ${resolve(output, 'manifest.json')}`);
 } finally {
   try { await encoder?.close(); }

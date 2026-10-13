@@ -1,9 +1,10 @@
+import { parseScheduleSource } from './schedule.js';
 const headingGroups = {
-  description: ['course description', 'course overview', 'course summary', 'catalog description', 'catalogue description'],
-  outcomes: ['learning outcomes', 'learning objectives', 'course learning outcomes', 'course learning objectives', 'intended learning outcomes', 'objectives'],
+  description: ['course description', 'course overview', 'course summary', 'catalog description', 'catalogue description', 'aperçu du cours', 'description du cours'],
+  outcomes: ['learning outcomes', 'learning objectives', 'course learning outcomes', 'course learning objectives', 'intended learning outcomes', 'objectives', "objectifs d'apprentissage", 'objectifs d’apprentissage'],
   topics: ['course topics', 'course content', 'topics covered', 'content overview'],
-  weeks: ['tentative class plan', 'tentative course plan', 'weekly schedule', 'weekly topics', 'course schedule', 'schedule of topics', 'course plan', 'tentative schedule'],
-  readings: ['readings', 'required readings', 'required texts', 'textbooks', 'course materials', 'texts and materials'],
+  weeks: ['tentative class plan', 'tentative course plan', 'weekly schedule', 'weekly topics', 'course schedule', 'schedule of topics', 'course plan', 'tentative schedule', 'plan du cours provisoire', 'calendrier du cours'],
+  readings: ['readings', 'required readings', 'required texts', 'textbooks', 'course materials', 'texts and materials', 'lectures', 'lectures obligatoires'],
   excluded: ['class schedule', 'instructional team', 'teaching team', 'contact information', 'office hours', 'technology', 'required materials & technologies',
     'assessments & activities', 'assessments and activities', 'assessments', 'assessment', 'evaluation', 'grading', 'grading scheme',
     'tutorials', 'assignments', 'late / missed content', 'late policy', 'assignment screening', 'generative ai', 'academic integrity',
@@ -14,7 +15,7 @@ const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const headingName = (value) => clean(value).replace(/^#{1,6}\s*/, '').replace(/^\d+[.)]\s*/, '').replace(/:$/, '').toLowerCase();
 
 export function normalizeOutlineCourseCode(value) {
-  const match = clean(value).match(/^([a-z]{2,8})\s*[-_]?\s*(\d{2,4}[a-z]?)$/i);
+  const match = clean(value).match(/^([a-z]{2,8})\s*[-_]?\s*(\d{1,4}[a-z]{0,3})$/i);
   if (!match || /^(?:fall|winter|spring|summer|autumn|week|chapter|module|unit)$/i.test(match[1])) throw new Error('A course code such as MATH 239 is required.');
   return `${match[1].toUpperCase()} ${match[2].toUpperCase()}`;
 }
@@ -52,8 +53,8 @@ function sourceSections(lines) {
   let activeKind;
   let weeklyStarted = false;
   lines.forEach((line, index) => {
-    if (activeKind === 'weeks' && /^(?:week\s*)?\d{1,2}(?:\s*[:–—-]|$)/i.test(clean(line))) weeklyStarted = true;
-    const kind = headings.get(headingName(line));
+    if (activeKind === 'weeks' && weekNumber(line.split('\t')[0])) weeklyStarted = true;
+    const kind = headings.get(headingName(line)) || (/^##\s+/.test(line) ? 'excluded' : null);
     if (!kind) return;
     if (activeKind === 'weeks' && !weeklyStarted && ['readings', 'assignments'].includes(headingName(line))) return;
     activeKind = kind;
@@ -115,23 +116,51 @@ function referencesFor(text, definitions) {
 }
 
 const isDateLine = (line) => /^(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d|\d{4}-\d{2}-\d{2})/i.test(line);
-const weekNumber = (value) => clean(value).match(/^(?:week\s*)?(\d{1,2})$/i)?.[1];
+function weekLabel(value) {
+  const match = clean(value).match(/^(?:(week|wk|w)\s*)?(\d{1,2})(?:\s*\(([^)]+)\)|\s*[:–—-]\s*(.+)|\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec).+))?$/i);
+  const date = match?.[3] || match?.[4] || match?.[5];
+  if (!match || date && !isDateLine(date) || Number(match[2]) < 1 || Number(match[2]) > 53) return null;
+  return { week: Number(match[2]), date, explicit: Boolean(match[1]) };
+}
+const weekNumber = value => weekLabel(value)?.week;
 
 function tableWeeks(section, definitions) {
   const rows = section.lines.map((line) => ({ line, cells: line.includes('\t') ? line.split('\t').map(clean)
     : /^\s*\|/.test(line) ? line.trim().replace(/^\||\|$/g, '').split('|').map(clean) : [] }));
-  const header = rows.find((row) => row.cells.some((cell) => /^week$/i.test(cell)) && row.cells.some((cell) => /topic|content|subject/i.test(cell)));
-  if (!header) return null;
-  const weekColumn = header.cells.findIndex((cell) => /^week$/i.test(cell));
-  const topicColumn = header.cells.findIndex((cell) => /topic|content|subject/i.test(cell));
-  const readingColumn = header.cells.findIndex((cell) => /reading|text|chapter/i.test(cell));
-  const dateColumn = header.cells.findIndex((cell) => /date/i.test(cell));
-  return rows.flatMap(({ cells }) => {
-    const week = weekNumber(cells[weekColumn]);
-    const topics = cells[topicColumn];
-    return week && topics ? [{ week: Number(week), topics, dateLabels: dateColumn >= 0 && cells[dateColumn] ? [cells[dateColumn]] : [],
-      references: referencesFor(readingColumn >= 0 ? cells[readingColumn] || '' : '', definitions), evidence: section.evidence }] : [];
-  });
+  const isWeekHeader = cell => /^weeks?(?:\s*(?:\/|-)?\s*dates?)?$/i.test(cell);
+  const header = rows.find((row) => row.cells.some(isWeekHeader) && row.cells.some((cell) => /topic|content|subject/i.test(cell)));
+  // Infer only an unambiguous two-column layout with repeated explicit week labels.
+  const labeledRows = rows.filter(({ cells }) => cells.length === 2 && weekLabel(cells[0])?.explicit);
+  if (!header && (new Set(labeledRows.map(row => weekLabel(row.cells[0]).week)).size < 2
+    || rows.some(row => row.cells.length && row.cells.length !== 2))) return null;
+  const weekColumn = header ? header.cells.findIndex(isWeekHeader) : 0;
+  const topicColumn = header ? header.cells.findIndex(cell => /topic|content|subject/i.test(cell)) : 1;
+  const readingColumn = header ? header.cells.findIndex(cell => /reading|text|chapter|^sections?$/i.test(cell)) : -1;
+  const dateColumn = header ? header.cells.findIndex(cell => /date/i.test(cell)) : -1;
+  const weeks = [], unparsed = [];
+  let active;
+  for (const row of rows) {
+    const { cells, line } = row;
+    if (!cells.length) {
+      if (clean(line)) { unparsed.push(line); active = null; }
+      continue;
+    }
+    if (row === header || cells.every(cell => !cell || /^[-:]+$/.test(cell))) continue;
+    const label = weekLabel(cells[weekColumn]);
+    const topics = cells[topicColumn] || '';
+    if (label && !/\b(?:reading week|lecture cancel(?:l)?ed|class cancel(?:l)?ed|no classes)\b/i.test(`${cells[weekColumn]} ${topics}`)) {
+      active = { week: label.week, topics, dateLabels: dateColumn >= 0 && dateColumn !== weekColumn && cells[dateColumn] ? [cells[dateColumn]] : label.date ? [label.date] : [],
+        references: referencesFor(readingColumn >= 0 ? cells[readingColumn] || '' : '', definitions), evidence: section.evidence };
+      weeks.push(active);
+    } else if (!cells[weekColumn] && active && topics && !/^(?:reading week|makeup|no classes|cancel(?:l)?ed)\b/i.test(topics)) {
+      active.topics = clean(`${active.topics} ${topics}`);
+      active.references.push(...referencesFor(readingColumn >= 0 ? cells[readingColumn] || '' : '', definitions));
+    } else {
+      active = null;
+      unparsed.push(line);
+    }
+  }
+  return { weeks: weeks.filter(week => week.topics), unparsed };
 }
 
 function verticalWeeks(section, definitions) {
@@ -154,8 +183,8 @@ function verticalWeeks(section, definitions) {
 
 function inlineWeeks(section, definitions) {
   return section.lines.flatMap((line) => {
-    const match = clean(line).replace(/^[-*]\s*/, '').match(/^week\s+(\d{1,2})\s*[:–—-]\s*(.+)$/i);
-    if (!match) return [];
+    const match = clean(line).replace(/^[•●▪◦‣*-]\s*/, '').match(/^week\s+(\d{1,2})\s*[:–—-]\s*(.+)$/i);
+    if (!match || Number(match[1]) < 1 || Number(match[1]) > 53) return [];
     const parts = match[2].split(/\s+(?:readings?|chapters?)\s*:\s*/i);
     return [{ week: Number(match[1]), topics: parts[0], dateLabels: [],
       references: referencesFor(parts.slice(1).join(' '), definitions), evidence: section.evidence }];
@@ -181,7 +210,7 @@ export function normalizeOutline(value) {
     };
   }).filter((item) => item.text);
   const weeks = (Array.isArray(value.weeks) ? value.weeks : []).map((item) => {
-    if (!item || !Number.isInteger(item.week) || item.week < 1 || item.week > 53 || !clean(item.topics)) throw new Error('Weekly topics need a week number between 1 and 53 and topic text.');
+    if (!item || !Number.isInteger(item.week) || item.week < 1 || item.week > 53 || !clean(item.topics) && !item.references?.length) throw new Error('Weekly topics need a week number between 1 and 53 and topic text.');
     return { week: item.week, topics: clean(item.topics), dateLabels: strings(item.dateLabels), references: Array.isArray(item.references) ? item.references : [],
       evidence: evidence(item.evidence, 'Weekly schedule') };
   });
@@ -192,8 +221,16 @@ export function normalizeOutline(value) {
   if (source && (source.protocol !== 'https:' || source.username || source.password)) throw new Error('Outline source URLs must use HTTPS without embedded credentials.');
   const sourceUrl = source?.href || null;
   const outline = { version: 1, id: clean(value.id) || sourceUrl || `${course}:${term || 'unknown-term'}:${strings(value.sections).sort().join(',') || 'unspecified-sections'}`,
-    sourceUrl, course, title, term, sections: strings(value.sections), publishedAt: value.publishedAt || null,
+    sourceUrl, course, courseCodes: [...new Set([course, ...strings(value.courseCodes).map(normalizeOutlineCourseCode)])],
+    title, term, sections: strings(value.sections), publishedAt: value.publishedAt || null,
+    ...(value.capturedAt ? { capturedAt: clean(value.capturedAt) } : {}),
     description: strings(value.description), outcomes: strings(value.outcomes), topics, weeks,
+    unparsedSchedule: strings(value.unparsedSchedule),
+    ...(value.scheduleSource ? { scheduleSource: value.scheduleSource } : {}),
+    scheduleEntries: Array.isArray(value.scheduleEntries) ? value.scheduleEntries : [],
+    scheduleReferences: Array.isArray(value.scheduleReferences) ? value.scheduleReferences : [],
+    scheduleEvents: Array.isArray(value.scheduleEvents) ? value.scheduleEvents : [],
+    scheduleStatus: value.scheduleStatus || (weeks.length ? 'explicit-weeks' : value.unparsedSchedule?.length ? 'unsupported-or-prose' : 'no-plan'),
     readings: Array.isArray(value.readings) ? value.readings : [], evidence: value.evidence || {}, warnings: [...new Set(warnings)] };
   if (!outline.description.length && !outline.outcomes.length && !topics.length && !weeks.length) throw new Error(`${course} has no usable description, outcomes, topics, or weekly plan.`);
   return outline;
@@ -212,16 +249,20 @@ export function extractOutline(text, overrides = {}) {
   const sections = sourceSections(lines);
   const definitions = readingDefinitions(sections);
   const weekly = sections.find((section) => section.kind === 'weeks');
-  const weeks = weekly ? tableWeeks(weekly, definitions) ?? [...verticalWeeks(weekly, definitions), ...inlineWeeks(weekly, definitions)] : [];
+  const table = weekly ? tableWeeks(weekly, definitions) : null;
+  const structured = parseScheduleSource(overrides.scheduleSource, definitions);
+  const weeks = (structured?.weeks.length ? structured.weeks : weekly ? table?.weeks ?? [...verticalWeeks(weekly, definitions), ...inlineWeeks(weekly, definitions)] : []).filter(week => /[\p{L}\p{N}]/u.test(week.topics) || week.references?.length);
   const warnings = [];
-  if (weekly && !weeks.length) warnings.push('A schedule section was found but its layout could not be parsed; no weekly associations were inferred.');
+  if (weekly && !weeks.length && !structured?.scheduleEntries.length && !structured?.scheduleReferences.length) warnings.push('A schedule section was found but its layout could not be parsed; no weekly associations were inferred.');
+  if (weeks.length && table?.unparsed.length) warnings.push('Additional schedule rows were retained without teaching-week associations.');
   return normalizeOutline({
     course, title: titleLine, term: clean(termLine), sections: parseSections(lines.find((line) => /^sections?\s+\d/i.test(clean(line)))),
     publishedAt: publishedDate(lines.find((line) => /^published\s+/i.test(clean(line)))),
     description: sections.filter((section) => section.kind === 'description').flatMap((section) => paragraphs(section.lines)),
     outcomes: sections.filter((section) => section.kind === 'outcomes').flatMap((section) => paragraphs(section.lines)),
     topics: sections.filter((section) => section.kind === 'topics').flatMap((section) => paragraphs(section.lines).map((text) => ({ text, heading: section.heading, evidence: section.evidence }))),
-    weeks, readings: definitions,
+    ...(structured ? { scheduleEntries: structured.scheduleEntries, scheduleReferences: structured.scheduleReferences, scheduleEvents: structured.scheduleEvents, scheduleStatus: weeks.length ? 'explicit-weeks' : structured.scheduleStatus } : {}),
+    weeks, unparsedSchedule: structured?.scheduleEntries.length ? structured.unparsed : weekly && !weeks.length ? paragraphs(weekly.lines) : table?.unparsed || [], readings: definitions,
     evidence: Object.fromEntries(sections.map((section) => [section.kind, section.evidence])), warnings, ...overrides
   });
 }

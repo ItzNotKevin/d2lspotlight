@@ -3,6 +3,7 @@ import { resolve, basename } from 'node:path';
 import { createOutlineEncoder, hash } from './outline-runtime.mjs';
 import { decodeOutlineVectors } from '../src/search/outlines/vectors.js';
 import { CATALOG_ENCODING_VERSION } from '../src/search/catalog/academic.js';
+import { compatibleCatalogEncoder } from '../src/search/catalog/live.js';
 import { MODEL_KEY, EMBEDDING_DIMENSIONS } from '../src/search/semantic/config.js';
 
 export async function createCatalogEncoder() {
@@ -13,7 +14,7 @@ export async function createCatalogEncoder() {
 
 export async function readCatalogBundle(directory) {
   const manifest = JSON.parse(await readFile(resolve(directory, 'manifest.json'), 'utf8'));
-  if (manifest.version !== 1 || manifest.kind !== 'course-catalog' || manifest.encoder?.modelKey !== MODEL_KEY
+  if (manifest.version !== 1 || manifest.kind !== 'course-catalog' || (manifest.encoder?.modelKey !== MODEL_KEY && !compatibleCatalogEncoder(manifest.encoder))
     || manifest.encoder?.encodingVersion !== CATALOG_ENCODING_VERSION || manifest.encoder?.dimensions !== EMBEDDING_DIMENSIONS
     || !Array.isArray(manifest.chunks) || !Array.isArray(manifest.vectorHashes) || !Array.isArray(manifest.courses)
     || typeof manifest.vectorFile !== 'string' || basename(manifest.vectorFile) !== manifest.vectorFile) throw new Error('Unsupported catalog bundle manifest.');

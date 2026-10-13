@@ -1,12 +1,12 @@
 # Bugs and next steps — developer handoff
 
-Updated October 12, 2026. This is the current handoff; older research/checklist files include historical implementation states. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
+Updated October 12, 2026. Start with [handoff.md](handoff.md) for the current prioritized handoff; this file preserves the detailed live-integration bug checklist. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
 
 October 12 priority update: the user selected hybrid keyword + semantic search as the next development priority. An opt-in local-model worker, embedding cache, hybrid retrieval, setup scripts, and synthetic validation are now implemented. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) for setup and the remaining evaluation work. The integration bugs below still require live validation.
 
 ## Integration status
 
-The incoming semantic/benchmark/catalog/outline implementation is retained, with local course associations, assignment filename fixes, weekly-note context, Piazza naming improvements, and browser checks applied on top. See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) and [WORK_SESSION_MEMORY.md](WORK_SESSION_MEMORY.md). PDF full-text indexing is the next user-approved planning direction, not implemented. Catalog/outline generated vectors are ignored local artifacts and are not connected to live resource ranking.
+The incoming semantic/benchmark/catalog/outline implementation is retained, with local course associations, assignment filename fixes, weekly-note context, Piazza naming improvements, and browser checks applied on top. See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) and [WORK_SESSION_MEMORY.md](WORK_SESSION_MEMORY.md). PDF full-text indexing is the next user-approved planning direction, not implemented. Catalog/outline generated vectors are ignored local artifacts but are connected to live ranking when bundled at build time. Explicit week-labelled study notes use matching outline topics; PDF contents remain unread.
 
 ## Start here
 
@@ -68,7 +68,7 @@ The incoming semantic/benchmark/catalog/outline implementation is retained, with
 - [ ] Add selected-resource retry/enrichment so an inspection cap does not permanently block a useful shortcut.
 - [ ] Expose a clear reason when a tool result needs a LEARN launch rather than displaying an unexplained wrapper destination.
 
-### 6. Browser interaction/accessibility has no end-to-end coverage
+### 6. Browser interaction/accessibility coverage is partial
 
 - [ ] Test repeated injection/toggle, cleanup, Escape, focus restoration, Tab containment, arrow/Enter selection, and both launch paths.
 - [ ] Validate screen-reader announcements and combobox/listbox relationships inside Shadow DOM.
@@ -101,7 +101,7 @@ These are planned features, not existing regressions. See `SEARCH_ROADMAP.md` an
 
 ## Verification at handoff
 
-- `npm test`: 59 tests pass (adapters, cache, ranking, service links, HTML classification, and token helper).
+- `npm test`: 148 tests pass, including structural schedule adapters and stale extension-context handling.
 - `npm run build`: passes.
 - The two user-reported integration bugs above remain unconfirmed in the actual browser. Synthetic fixtures do not close them.
-- No automated browser suite exists yet. Do not mark the handoff bugs complete solely from Node tests.
+- Disposable Chrome tests cover dialog rendering, simulated stale-root recovery, local inference, real-outline/fixture-resource retrieval and cache cleanup. Full actual extension reload, accessibility, and the live account bugs remain unverified.

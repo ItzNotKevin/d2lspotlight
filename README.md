@@ -4,6 +4,8 @@ A Chrome extension for quick course-resource search. The extension now includes 
 
 The overlay is built with React, Framer Motion, and Lucide icons. Its component structure follows the Spotlight example supplied for this project: a focused search input, animated placeholder and expanding result area, hover shortcut buttons, and icon/title/description result rows. The colours and result details are tailored to course materials.
 
+Developer setup, artifact transfer and next tasks are in [handoff.md](handoff.md). Generated model and outline bundles are excluded from Git.
+
 ## Build and try it
 
 1. Run `npm install` and `npm run build` in this folder.
@@ -84,7 +86,7 @@ for installation, tests, permissions, and limitations.
 
 Contextual search now interprets week numbers, annotated-note filenames, selected course subjects,
 latest-note intent, and a small related-concept vocabulary. Try `latest stat230 notes`,
-`probability lecture notes`, `professor notes stat230`, or a topic present in your saved metadata.
+`probability lecture notes`, `stat230 annotated notes`, or a topic present in your saved metadata.
 latest means the newest available numbered lecture week in each indexed course, not a verified
 calendar teaching week. Research, implementation, and future outline/model stages are in
 [CONTEXTUAL_SEARCH_PLAN.md](CONTEXTUAL_SEARCH_PLAN.md).
@@ -117,6 +119,12 @@ still open through LEARN. Actual account-specific links require a browser check 
 
 ## October 12 combined implementation
 
-The current extension is **v0.3.0**. Unique LEARN/Piazza course-code pairs share a filter; duplicate candidates or conflicting known terms ask for confirmation. Assignment aliases work in both directions across filename separators. Keyword search is immediate; **Meaning search** uses the incoming persistent local worker and hybrid ranking.
+The current extension is **v0.3.1**. Unique LEARN/Piazza course-code pairs share a filter; duplicate candidates or conflicting known terms ask for confirmation. Assignment aliases work in both directions across filename separators. Keyword search is immediate; **Meaning search** uses the incoming persistent local worker and hybrid ranking.
 
 See [INTEGRATION_REPORT.md](INTEGRATION_REPORT.md) for merge choices, [WORK_SESSION_MEMORY.md](WORK_SESSION_MEMORY.md) for user decisions, and [LOCAL_SEMANTIC_SEARCH.md](LOCAL_SEMANTIC_SEARCH.md) for integrated setup. After pulling: `npm ci`, `npm run setup:semantic`, `npm run build`, then reload the extension and browser tabs. Generated catalog/outline vectors are not included in Git; PDF full-text indexing remains planned.
+
+Latest semantic update: special STAT230/STAT231 subject rules and professor-to-annotated rewriting are removed. The model compares natural sentences and simplified topics. Optional imported public catalog description vectors now contribute bounded course relevance. See [GENERAL_SEMANTIC_SEARCH.md](GENERAL_SEMANTIC_SEARCH.md) and [OUTLINE_FORMAT_REVIEW.md](OUTLINE_FORMAT_REVIEW.md). This checkout already has the supplied catalog imported; the ignored artifacts must be shared separately with other developers.
+
+Real term-specific outlines can be collected through your signed-in Chrome viewer with `npm run collect:outlines -- --term F26`, embedded with `npm run embed:outlines -- outline-data/collected/F26/outlines.json`, and packaged by `npm run build`. Collection resumes from local checkpoints. See [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md) for browser setup, coverage and current limitations. A uniquely matching outline takes precedence over academic-calendar course context.
+
+Outline extraction now covers 775/1,739 explicit weekly plans (44.6%) and 1,123 structured teaching plans (64.6%). See [the parsing results](OUTLINE_PARSING_RESULTS.md) for coverage definitions, remaining layouts, and offline rebuild commands.

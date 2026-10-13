@@ -1,6 +1,6 @@
 export const MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 export const MODEL_REVISION = '751bff37182d3f1213fa05d7196b954e230abad9';
-export const MODEL_KEY = `${MODEL_ID}@${MODEL_REVISION}:q8:mean:v3`;
+export const MODEL_KEY = `${MODEL_ID}@${MODEL_REVISION}:q8:mean:v4`;
 export const EMBEDDING_DIMENSIONS = 384;
 export const MIN_SIMILARITY = 0.4;
 export const MAX_RESOURCES = 5000;
