@@ -5,6 +5,8 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
   const [busy, setBusy] = useState(false);
   const [manualUrl, setManualUrl] = useState('');
   const request = useRef(null);
+  const consentButton = useRef(null);
+  const [deferred, setDeferred] = useState(() => new Set());
   useEffect(() => {
     const progress = message => {
       if (message?.type === 'course-site-progress' && message.requestId === request.current) {
@@ -18,6 +20,24 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
   const homeId = onLearn ? location.pathname.match(/^\/d2l\/home\/(\d+)\/?$/)?.[1] : null;
   const verified = Boolean(index.accountId && index.generation && verifiedGeneration === index.generation);
   const identity = { accountId: index.accountId, generation: index.generation };
+  function previouslyDeferred(key) {
+    try { return Boolean(sessionStorage.getItem(`learnSpotlightSiteConsent:${key}`)); }
+    catch { return false; }
+  }
+  // Treat the two supported host aliases as one consent choice for this course.
+  const consentKey = site => JSON.stringify([index.accountId, site.courseId, new URL(site.root).pathname]);
+  const promptSite = isOpen && onLearn && homeId && verified && !busy
+    ? (index.courseSites || []).find(site => site.courseId === homeId && !site.enabled && !deferred.has(consentKey(site))
+      && !previouslyDeferred(consentKey(site))) : null;
+  const promptKey = promptSite ? consentKey(promptSite) : null;
+  useEffect(() => {
+    if (promptKey) consentButton.current?.focus();
+  }, [promptKey]);
+  function deferSite(site) {
+    const key = consentKey(site);
+    try { sessionStorage.setItem(`learnSpotlightSiteConsent:${key}`, 'later'); } catch {}
+    setDeferred(previous => new Set([...previous, key]));
+  }
 
   async function send(action, payload = {}) {
     const response = await chrome.runtime.sendMessage({ type: 'course-site', action, ...identity, ...payload });
@@ -63,6 +83,21 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
   }
 
   return <div className="ls-connection">
+    {promptSite && <section className="ls-site-consent" role="region" aria-label="Course website access" onKeyDown={event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); deferSite(promptSite); }
+    }}>
+      <strong>Include {promptSite.code}’s course website?</strong>
+      <p>Search its public pages for information such as office hours, schedules and course policies.</p>
+      <p className="ls-site-consent-url">{promptSite.url}</p>
+      <div className="ls-connection-actions">
+        <button ref={consentButton} className="ls-chip is-active" onClick={() => {
+          // Send the request during this click so Chrome can show its permission dialog.
+          run('include', promptSite);
+          deferSite(promptSite);
+        }}>Allow and index</button>
+        <button className="ls-chip" onClick={() => deferSite(promptSite)}>Not now</button>
+      </div>
+    </section>}
     {(index.courseSites || []).map(site => <div className="ls-connection-actions" key={`${site.courseId}:${site.root}`}>
       <span>{site.code} · Course website{site.enabled ? ` · ${site.pageCount || 0} pages${site.partial ? ' · partial' : ''}` : ' detected'}</span>
       <a className="ls-chip" href={site.url} target="_blank" rel="noreferrer">Open website</a>
