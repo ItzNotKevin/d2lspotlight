@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.4.1 fixes shortcut reopening:** a closing overlay can reopen immediately, and shortcut handling resolves the focused tab when Chrome omits the command's tab argument. Reload the extension once and refresh LEARN/Piazza tabs to activate the update.
+
 **v0.4.0 adds PDF content search:** selectable text is indexed locally by page, so `permutation` can find a passage inside generic STAT 230 notes and open the matching PDF page. Course, notes-section and saved instructor filters are available. See [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md) for setup, indexing limits and live testing. Scanned/handwritten notes still need future OCR. Older roadmap sections below describe the pre-PDF implementation.
 
 A Chrome extension for quick course-resource search. The extension now includes an **experimental Waterloo LEARN browser-session adapter**: open Spotlight while signed in to index all accessible courses, then search their saved metadata from any normal webpage. Live Waterloo compatibility is pending user testing. The local design preview still uses sample data.

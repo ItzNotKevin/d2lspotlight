@@ -4,7 +4,7 @@ Spotlight searches selectable text inside LEARN PDFs. `permutation` or `stat230 
 
 ## Try it
 
-1. Run `npm install` and `npm run build`. Reload the extension and refresh the LEARN tab. Check **v0.4.0** in the footer.
+1. Run `npm install` and `npm run build`. Reload the extension and refresh the LEARN tab. Check **v0.4.1** in the footer.
 2. Open Spotlight on signed-in LEARN. After verifying the session and loading metadata, it automatically reads PDFs sequentially. Leave the overlay open; progress reports coverage and failures. Closing cancels downloading/extraction; completed documents remain saved.
 3. Select **STAT 230** in the course filter to narrow indexing and searching. Select a **notes section** to narrow to a LEARN folder path. Changing scope cancels the previous run and uses the new scope. Saved PDFs from other scopes remain searchable when filters are cleared.
 4. Search `permutation`. Actual matches show **PDF page …** and a snippet. Click or press Enter to open that PDF page. Viewing requires a valid LEARN session and inline PDF viewing in Chrome. PDFs themselves are not cached. Page numbers are physical file pages, which can differ from printed page labels. Landing is at the page, not an exact highlighted paragraph.

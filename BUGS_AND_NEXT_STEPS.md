@@ -1,5 +1,7 @@
 # Bugs and next steps — developer handoff
 
+**v0.4.1 shortcut fix:** a closing root previously remained reusable while repeated injection only called its no-op close function. Reopening now reverses the exit, and a delayed exit callback cannot dispose a reopened root. The command handler also queries the focused tab when its optional tab argument is absent. The browser regression checks rapid reopening, background-tab transitions and real focused-tab fallback. Native OS shortcuts, desktop app switching and idle-worker wake-up still need a manual Chrome check; the headless debugger could not validate idle-worker event delivery.
+
 **v0.4.0 update:** selectable-text PDF indexing and page-level search are implemented; see [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md). Older mentions of PDFs remaining unread are superseded. OCR, passage embeddings and live Waterloo validation remain outstanding.
 
 Updated October 12, 2026. Start with [handoff.md](handoff.md) for the current prioritized handoff; this file preserves the detailed live-integration bug checklist. Automated checks pass, but they do not establish that the user's signed-in browser integration works.

@@ -3,6 +3,7 @@ import { readPiazzaSession } from './src/piazza/session.js';
 import { PIAZZA_CACHE_KEY } from './src/piazza/cache.js';
 import { clearSemanticCache, registerSemanticSearch } from './src/search/semantic/background.js';
 import { clearPdfCache, registerPdfSearch } from './src/search/pdf/background.js';
+import { toggleSpotlight } from './src/toggle.js';
 
 registerSemanticSearch();
 registerPdfSearch();
@@ -58,21 +59,6 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   );
   return true;
 });
-
-async function toggleSpotlight(tab) {
-  if (!tab?.id) return;
-
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: "ISOLATED",
-      files: ["dist/spotlight.js"]
-    });
-  } catch (error) {
-    // Chrome blocks injection into its own pages and some protected sites.
-    console.warn("Learn Spotlight cannot open on this page.", error);
-  }
-}
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
   if (command === "toggle-spotlight") {
