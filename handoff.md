@@ -1,5 +1,9 @@
 # Developer handoff — October 12, 2026
 
+## PDF implementation update
+
+v0.4.0 adds bounded local selectable-text PDF indexing, verified page snippets and direct page links, course/notes-section/instructor filters, cancellation, account/revision isolation and IndexedDB caching. See [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md). `npm run check:pdf:extension` tests the built extension with intercepted LEARN responses and real fixture PDFs. Live STAT 230 file access and native viewer landing still need the user's browser check. OCR, exact paragraph highlighting and passage embeddings remain future work. The older queue item below describing PDF extraction as unimplemented is superseded by this update.
+
 Start here after pulling `main`. This is the current work queue; older research and checklist documents preserve historical plans. Do not interpret their old unchecked items as the current implementation state.
 
 ## What is done

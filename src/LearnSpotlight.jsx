@@ -7,6 +7,8 @@ import { REFRESH_INTERVAL, refreshCourses } from './learn/sync.js';
 import { usePiazzaIndex } from './piazza/usePiazzaIndex.jsx';
 import { piazzaIndexMessage } from './piazza/cache.js';
 import { associateCourses } from './search/associations.js';
+import { usePdfIndex } from './search/pdf/usePdfIndex.jsx';
+import { notesSection } from './search/pdf/core.js';
 
 export function LearnSpotlight(props) {
   const piazza = usePiazzaIndex(props.isOpen);
@@ -18,6 +20,9 @@ export function LearnSpotlight(props) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [storageBytes, setStorageBytes] = useState(null);
   const [semanticEnabled, setSemanticEnabled] = useState(false);
+  const [verifiedGeneration, setVerifiedGeneration] = useState(null);
+  const [pdfFilters, setPdfFilters] = useState({});
+  const pdf = usePdfIndex({ index, isOpen: props.isOpen, verifiedGeneration, filters: pdfFilters });
 
   const [associations, setAssociations] = useState({ key: '', pairs: {} });
   const associationKey = `courseAssociations:${JSON.stringify([index.accountId, piazza.index.accountId])}`;
@@ -60,6 +65,7 @@ export function LearnSpotlight(props) {
   }, [props.isOpen, index, piazza.index]);
 
   async function refresh(force = false) {
+    setVerifiedGeneration(null);
     controller.current?.abort();
     const next = new AbortController();
     controller.current = next;
@@ -80,8 +86,10 @@ export function LearnSpotlight(props) {
       const session = await client.connect();
       signal.throwIfAborted();
       const sameCourses = session.courses.map((course) => course.id).sort().join(',') === previous.courses.map((course) => course.id).sort().join(',');
-      if (!force && sameCourses && previous.updatedAt && !previous.failedCourses.length && Date.now() - previous.updatedAt < REFRESH_INTERVAL) {
+      const pdfDestinationsReady = previous.resources.every(resource => resource.type !== 'PDF' || resource.pdfUrl);
+      if (!force && sameCourses && pdfDestinationsReady && previous.updatedAt && !previous.failedCourses.length && Date.now() - previous.updatedAt < REFRESH_INTERVAL) {
         setMessage('Your resources are up to date.');
+        setVerifiedGeneration(previous.generation);
         return;
       }
       const updated = await refreshCourses({ client, session, previous, signal,
@@ -93,6 +101,7 @@ export function LearnSpotlight(props) {
         onProgress: (done, total) => setMessage(`Refreshing courses ${done} of ${total}…`) });
       signal.throwIfAborted();
       setIndex(await indexMessage('commit', updated));
+      setVerifiedGeneration(updated.generation);
       if (!signal.aborted) setMessage(updated.failedCourses.length
         ? `${updated.failedCourses.length} courses could not refresh. Some results may be missing or older.`
         : `${updated.resources.length} resources across ${updated.courses.length} courses.`);
@@ -124,6 +133,7 @@ export function LearnSpotlight(props) {
   }, [props.isOpen]);
 
   async function clear() {
+    setVerifiedGeneration(null);
     controller.current?.abort();
     setBusy(false);
     try {
@@ -134,7 +144,7 @@ export function LearnSpotlight(props) {
 
   function recordOpen(resource) {
     const send = resource.source === 'Piazza' ? piazzaIndexMessage : indexMessage;
-    send('opened', { id: resource.id }).catch(() => setMessage('Opened resource, but could not save recent history.'));
+    send('opened', { id: resource.resourceId || resource.id }).catch(() => setMessage('Opened resource, but could not save recent history.'));
   }
 
   const connection = (
@@ -148,17 +158,25 @@ export function LearnSpotlight(props) {
           ? <button className="ls-chip" disabled={busy} onClick={() => refresh(true)}>{busy ? 'Refreshing…' : 'Refresh courses'}</button>
           : <a className="ls-chip" href={LEARN_ORIGIN} target="_blank" rel="noreferrer">Open LEARN</a>}
         {index.accountId && <button className="ls-chip" onClick={clear}>Clear LEARN data</button>}
+        <button className="ls-chip" aria-pressed={pdf.enabled} onClick={pdf.toggle}>PDF indexing: {pdf.enabled ? 'on' : 'paused'}</button>
+        {onLearn && <button className="ls-chip" onClick={pdf.retry}>Retry PDF indexing</button>}
+        {!!pdf.status?.documents.length && <button className="ls-chip" onClick={pdf.clear}>Clear PDF text</button>}
         {diagnostics.length > 0 && <button className="ls-chip" onClick={() => setShowDiagnostics((value) => !value)}>{showDiagnostics ? 'Hide' : 'Show'} diagnostics</button>}
       </div>
+      <p role="status">{pdf.message || (onLearn ? 'PDF text will be indexed after your LEARN session is checked.' : 'Saved PDF text is searchable. Open LEARN to index more PDFs.')}{pdf.status ? ` · ${pdf.status.documents.length} PDFs · ${(pdf.status.chars * 2 / (1024 * 1024)).toFixed(1)} MB text (approx.)` : ''}</p>
       {showDiagnostics && <textarea className="ls-diagnostics" aria-label="Connection diagnostics — copy to share" readOnly value={JSON.stringify({ adapter: 'browser-session-v2', events: diagnostics }, null, 2)} />}
     </div>
   );
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';
   const combined = React.useMemo(() => associateCourses(index.courses, piazza.index.courses,
-    [...index.resources.map((resource) => ({ ...resource, source: 'LEARN' })), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey]);
+    [...index.resources.map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
 
   return <Spotlight {...props} resources={combined.resources} courses={combined.courses} history={history}
+    pdfRevision={pdf.revision} onFiltersChange={setPdfFilters} onLabelNotes={onLearn ? async (section, name) => {
+      try { setIndex(await indexMessage('label-notes', { accountId: index.accountId, section, name })); }
+      catch (error) { setMessage(error.message); }
+    } : null}
     semanticEnabled={semanticEnabled}
     demo={false} connection={<>{connection}{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:

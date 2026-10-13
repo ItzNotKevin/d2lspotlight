@@ -1,9 +1,11 @@
 import { compareDateIntent, prepareSearchQuery, rankResource } from '../search/rank.js';
 
-export function filterResources(resources, { courseId = '', source = '', documents = false, recent = false, history = {} } = {}) {
+export function filterResources(resources, { courseId = '', source = '', documents = false, recent = false, history = {}, notesSection = '', instructor = '' } = {}) {
   return resources.filter((resource) => {
     return (!courseId || resource.courseId === courseId) &&
       (!source || resource.source === source) &&
+      (!notesSection || resource.notesSection === notesSection) &&
+      (!instructor || resource.instructor === instructor) &&
       (!documents || ['PDF', 'DOC', 'NOTES', 'SLIDES'].includes(resource.type)) &&
       (!recent || Boolean(history[resource.id]));
   });
