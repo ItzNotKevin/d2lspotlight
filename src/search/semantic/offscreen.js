@@ -1,4 +1,5 @@
 import { openEmbeddingCache } from './cache.js';
+import '../pdf/extract.js';
 
 let worker;
 let idleTimer;

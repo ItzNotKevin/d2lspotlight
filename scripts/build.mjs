@@ -23,6 +23,10 @@ await build({ root, configFile: false,
 } });
 
 await mkdir(resolve(root, 'dist/wasm'), { recursive: true });
+await cp(resolve(root, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'), resolve(root, 'dist/pdf.worker.mjs'));
+await cp(resolve(root, 'node_modules/pdfjs-dist/cmaps'), resolve(root, 'dist/pdf-cmaps'), { recursive: true });
+await cp(resolve(root, 'node_modules/pdfjs-dist/standard_fonts'), resolve(root, 'dist/pdf-fonts'), { recursive: true });
+await cp(resolve(root, 'node_modules/pdfjs-dist/wasm'), resolve(root, 'dist/pdf-wasm'), { recursive: true });
 for (const name of ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']) {
   await cp(resolve(root, 'node_modules/onnxruntime-web/dist', name), resolve(root, 'dist/wasm', name));
 }

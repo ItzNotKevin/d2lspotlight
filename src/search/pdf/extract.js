@@ -1,0 +1,39 @@
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { MAX_PDF_BYTES, extractDocumentText } from './core.js';
+
+GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('dist/pdf.worker.mjs');
+const tasks = new Map();
+export async function extractPdf(base64, id) {
+  if (typeof base64 !== 'string' || base64.length > Math.ceil(MAX_PDF_BYTES / 3) * 4) throw new Error('PDF exceeds the extraction limit.');
+  const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+  const task = getDocument({ data: bytes, isEvalSupported: false, useSystemFonts: true,
+    cMapUrl: chrome.runtime.getURL('dist/pdf-cmaps/'), cMapPacked: true,
+    standardFontDataUrl: chrome.runtime.getURL('dist/pdf-fonts/'),
+    wasmUrl: chrome.runtime.getURL('dist/pdf-wasm/') });
+  tasks.set(id, task);
+  const timer = setTimeout(() => task.destroy(), 60000);
+  try {
+    const pdf = await task.promise;
+    return await extractDocumentText(pdf, () => {
+      if (tasks.get(id) !== task) throw new Error('PDF indexing cancelled.');
+    });
+  } finally {
+    clearTimeout(timer);
+    if (tasks.get(id) === task) tasks.delete(id);
+    await task.destroy();
+  }
+}
+export function cancelPdf(id) {
+  const task = tasks.get(id);
+  tasks.delete(id);
+  task?.destroy().catch(() => {});
+}
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.target !== 'pdf-offscreen' || sender.id !== chrome.runtime.id || sender.tab) return;
+  if (message.action === 'cancel') { cancelPdf(message.id); reply({ ok: true }); return; }
+  if (message.action !== 'extract') return;
+  extractPdf(message.bytes, message.id).then(document => reply({ ok: true, document }),
+    () => reply({ ok: false, error: 'PDF could not be read (encrypted, damaged, cancelled, or extraction timed out).' }));
+  return true;
+});

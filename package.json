@@ -1,6 +1,6 @@
 {
   "name": "d2lspotlight",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,6 +19,7 @@
     "benchmark:search-models": "node scripts/benchmark-search-models.mjs",
     "test": "node --test",
     "check:semantic:extension": "node scripts/check-semantic-extension.mjs",
+    "check:pdf:extension": "node scripts/check-pdf-extension.mjs",
     "import:catalog": "node scripts/import-catalog-bundle.mjs",
     "collect:outlines": "node scripts/collect-outlines.mjs",
     "reparse:outlines": "node scripts/reparse-outlines.mjs",
@@ -28,6 +29,7 @@
     "@huggingface/transformers": "4.3.1",
     "framer-motion": "12.42.2",
     "lucide-react": "0.577.0",
+    "pdfjs-dist": "6.4.299",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

@@ -2,13 +2,16 @@ import { createIndexStore } from './src/learn/cache.js';
 import { readPiazzaSession } from './src/piazza/session.js';
 import { PIAZZA_CACHE_KEY } from './src/piazza/cache.js';
 import { clearSemanticCache, registerSemanticSearch } from './src/search/semantic/background.js';
+import { clearPdfCache, registerPdfSearch } from './src/search/pdf/background.js';
 
 registerSemanticSearch();
+registerPdfSearch();
 
 async function updateIndex(store, action, payload) {
   const previous = ['begin', 'clear'].includes(action) ? await store('read') : null;
   const index = await store(action, payload);
   if (action === 'clear' || (action === 'begin' && previous.accountId !== index.accountId)) await clearSemanticCache();
+  if (store === indexStore && (action === 'clear' || (action === 'begin' && previous.accountId !== index.accountId))) await clearPdfCache();
   return index;
 }
 
@@ -41,9 +44,13 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type !== 'learn-index' || sender.id !== chrome.runtime.id || !sender.tab) return;
   let onLearn = false;
   try { onLearn = new URL(sender.url).origin === 'https://learn.uwaterloo.ca'; } catch {}
-  if (['begin', 'commit'].includes(message.action) && !onLearn) {
+  if (['begin', 'commit', 'label-notes'].includes(message.action) && !onLearn) {
     reply({ ok: false, error: 'Refresh from a signed-in LEARN tab.' });
     return;
+  }
+  if (message.action === 'clear-pdf') {
+    clearPdfCache().then(() => reply({ ok: true, index: null }), () => reply({ ok: false, error: 'Could not clear PDF text.' }));
+    return true;
   }
   updateIndex(indexStore, message.action, message.payload).then(
     (index) => reply({ ok: true, index }),

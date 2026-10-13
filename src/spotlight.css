@@ -190,6 +190,9 @@
 .ls-type-pdf { background: #f2e3dd; color: #b9503c; }
 .ls-type-slides { background: #e3e8e9; color: #54747a; }
 .ls-row-copy { min-width: 0; flex: 1; }
+.ls-row-snippet { display: block; margin-top: 6px; font-size: 12px; line-height: 1.5; color: #746d63; white-space: normal; }
+.ls-instructor-label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.ls-instructor-label input { padding: 6px 8px; border: 1px solid #ded8cf; border-radius: 6px; font: inherit; }
 .ls-row-title { display: block; overflow: hidden; color: #25332f; font-size: 14px; font-weight: 750; line-height: 1.4; letter-spacing: -.013em; text-overflow: ellipsis; white-space: nowrap; }
 .ls-row-meta { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 4px; }
 .ls-type-label { flex: none; padding: 2px 5px; border-radius: 4px; background: #e9e6dc; color: #5f675f; font: 700 10px/1.2 'SFMono-Regular', Consolas, monospace; letter-spacing: .025em; }

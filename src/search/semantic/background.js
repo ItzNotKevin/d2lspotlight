@@ -11,7 +11,7 @@ let creating;
 let clearing = Promise.resolve();
 const requests = new Map();
 
-async function ensureDocument() {
+export async function ensureDocument() {
   const documentUrls = [chrome.runtime.getURL('semantic.html')];
   if ((await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls })).length) return;
   if (!creating) {

@@ -1,5 +1,5 @@
 export const CACHE_KEY = 'learnSpotlightIndexV1';
-export const emptyIndex = () => ({ version: 1, accountId: null, courses: [], resources: [], history: {}, updatedAt: null, failedCourses: [], generation: null });
+export const emptyIndex = () => ({ version: 1, accountId: null, courses: [], resources: [], history: {}, pdfLabels: {}, updatedAt: null, failedCourses: [], generation: null });
 
 // Only the service worker mutates storage. Its message queue serializes writes
 // from multiple tabs so indexing cannot overwrite a recently opened resource.
@@ -25,6 +25,13 @@ export function createIndexStore(storage, key = CACHE_KEY) {
       next = { ...current, courses: payload.courses, resources: payload.resources,
         updatedAt: payload.updatedAt, failedCourses: payload.failedCourses,
         history: Object.fromEntries(Object.entries(current.history).filter(([id]) => ids.has(id))) };
+    } else if (action === 'label-notes') {
+      if (payload.accountId !== current.accountId || !current.resources.some(resource => resource.type === 'PDF' && JSON.stringify([resource.courseId, resource.path || '']) === payload.section)) throw new Error('Choose an indexed notes section.');
+      const pdfLabels = { ...current.pdfLabels };
+      const name = String(payload.name || '').trim().slice(0, 100);
+      if (name) pdfLabels[payload.section] = name;
+      else delete pdfLabels[payload.section];
+      next = { ...current, pdfLabels };
     } else if (action === 'rename-course') {
       const name = String(payload.name || '').trim().slice(0, 100);
       if (!name || !current.courses.some((course) => course.id === payload.courseId)) throw new Error('Choose an indexed course and enter its name.');

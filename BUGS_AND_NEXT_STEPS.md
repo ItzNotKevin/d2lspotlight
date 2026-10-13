@@ -1,5 +1,7 @@
 # Bugs and next steps — developer handoff
 
+**v0.4.0 update:** selectable-text PDF indexing and page-level search are implemented; see [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md). Older mentions of PDFs remaining unread are superseded. OCR, passage embeddings and live Waterloo validation remain outstanding.
+
 Updated October 12, 2026. Start with [handoff.md](handoff.md) for the current prioritized handoff; this file preserves the detailed live-integration bug checklist. Automated checks pass, but they do not establish that the user's signed-in browser integration works.
 
 October 12 priority update: the user selected hybrid keyword + semantic search as the next development priority. An opt-in local-model worker, embedding cache, hybrid retrieval, setup scripts, and synthetic validation are now implemented. Follow [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) for setup and the remaining evaluation work. The integration bugs below still require live validation.

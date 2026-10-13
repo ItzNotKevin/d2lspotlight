@@ -7,6 +7,9 @@ import { prepareQuery, rankResource } from './search/rank.js';
 import { hybridSearch } from './search/hybrid.js';
 import { useSemanticSearch } from './search/semantic/useSemanticSearch.jsx';
 import { sampleResources } from './sampleResources.js';
+import { usePdfSearch } from './search/pdf/usePdfSearch.jsx';
+import { mergePdfResults } from './search/pdf/core.js';
+import { filterResources } from './learn/search.js';
 
 const EMPTY_HISTORY = {};
 
@@ -131,10 +134,13 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.source && <span>{resource.source}</span>}
           {resource.service && <span>{resource.service}</span>}
           {resource.directLink && <span>Opens directly</span>}
+          {resource.pdfMatch && <span>PDF page {resource.pdfPage}{resource.pdfPartial ? ' · partial index' : ''}</span>}
+          {resource.instructor && <span>{resource.instructor}</span>}
           {fuzzy && <span>Similar spelling</span>}
           {resource.outlineWeek ? <span title="Topics inferred from the course outline’s weekly plan; document contents have not been read.">Outline suggests Week {resource.outlineWeek.week}</span> : resource.semanticMatch && <span>Related meaning</span>}
           <span className="ls-row-path"><HighlightText text={resource.path} query={query} /></span>
         </span>
+        {resource.snippet && <span className="ls-row-snippet"><HighlightText text={resource.snippet} query={query} /></span>}
       </span>
       <span className="ls-course"><HighlightText text={resource.course} query={query} /></span>
       <ChevronRight className="ls-chevron" size={16} strokeWidth={1.7} aria-hidden="true" />
@@ -174,7 +180,7 @@ function SearchResultsContainer({ listRef, results, query, selectedIndex, onHove
   );
 }
 
-export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticEnabled = false }) {
+export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticEnabled = false, pdfRevision = 0, onFiltersChange, onLabelNotes }) {
   const shortcuts = [
     { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
     ...(demo ? [{ id: 'course', label: courseLabel, shortLabel: 'Course', icon: BookOpen }] : []),
@@ -187,6 +193,9 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const [scope, setScope] = useState('all');
   const [courseId, setCourseId] = useState('');
   const [source, setSource] = useState('');
+  const [notesSection, setNotesSection] = useState('');
+  const [instructor, setInstructor] = useState('');
+  const [instructorLabel, setInstructorLabel] = useState('');
   const [documents, setDocuments] = useState(false);
   const [recent, setRecent] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -201,10 +210,20 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const expanded = hasQuery || !demo;
   const semantic = useSemanticSearch({ enabled: semanticEnabled && !demo && remoteResults === null,
     isOpen, resources, query: searchValue, courseId, source, documents, recent, history });
+  const filters = useMemo(() => ({ courseId, source, documents, recent, notesSection, instructor }), [courseId, source, documents, recent, notesSection, instructor]);
+  const pdf = usePdfSearch({ isOpen: isOpen && !demo && remoteResults === null, query: searchValue, filters, resources, revision: pdfRevision, history });
+  useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
+  const scopedPdfs = useMemo(() => filterResources(resources, { courseId, source }).filter(resource => resource.type === 'PDF'), [resources, courseId, source]);
+  const sections = [...new Map(scopedPdfs.filter(resource => resource.notesSection).map(resource => [resource.notesSection, resource])).values()];
+  const instructors = [...new Set(scopedPdfs.map(resource => resource.instructor).filter(Boolean))].sort();
+  useEffect(() => {
+    if (notesSection && !scopedPdfs.some(resource => resource.notesSection === notesSection)) setNotesSection('');
+    if (instructor && !scopedPdfs.some(resource => resource.instructor === instructor)) setInstructor('');
+  }, [scopedPdfs, notesSection, instructor]);
 
   const searchResults = useMemo(() => {
     if (remoteResults !== null) return remoteResults;
-    if (!demo) return hybridSearch(resources, { query: searchValue, courseId, source, documents, recent, history }, semantic.matches);
+    if (!demo) return mergePdfResults(hybridSearch(resources, { query: searchValue, ...filters, history }, semantic.matches), pdf.matches);
     if (!hasQuery) return [];
     return resources.filter((resource) =>
       matches(resource, searchValue) &&
@@ -212,7 +231,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
       (!documents || ['PDF', 'DOC', 'NOTES', 'SLIDES'].includes(resource.type)) &&
       (!recent || resource.recent)
     );
-  }, [resources, courseLabel, documents, hasQuery, recent, scope, searchValue, demo, courseId, source, history, remoteResults, semantic.matches]);
+  }, [resources, courseLabel, documents, hasQuery, recent, scope, searchValue, demo, courseId, source, history, remoteResults, semantic.matches, filters, pdf.matches]);
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
@@ -260,7 +279,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
 
   function selectFilter(filter) {
     if (filter === 'all' || filter === 'course') setScope(filter);
-    if (filter === 'all') { setCourseId(''); setSource(''); }
+    if (filter === 'all') { setCourseId(''); setSource(''); setNotesSection(''); setInstructor(''); }
     if (filter === 'documents') setDocuments((current) => !current);
     if (filter === 'recent') setRecent((current) => !current);
     setSelectedIndex(0);
@@ -380,7 +399,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                     transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.16, 1, 0.3, 1] }}
                   >
                     {remoteResults === null && <div className="ls-filters" role="group" aria-label="Search filters">
-                      {!demo && <select className="ls-course-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); }}>
+                      {!demo && <select className="ls-course-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
                         <option value="">LEARN + Piazza</option>
                         <option value="LEARN">LEARN only</option>
                         <option value="Piazza">Piazza only</option>
@@ -390,15 +409,29 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                         const active = shortcut.id === 'all' && !demo ? !courseId && !source : isFilterActive(shortcut.id, scope, documents, recent);
                         return <button key={shortcut.id} className="ls-chip" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
                       })}
-                      {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setSelectedIndex(0); }}>
+                      {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setNotesSection(''); setInstructor(''); setSelectedIndex(0); }}>
                         <option value="">All courses</option>
                         {courses.filter((course) => !source || resources.some(resource => resource.courseId === course.id && resource.source === source)).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                       </select>}
+                      {!demo && sections.length > 0 && <select className="ls-course-filter" aria-label="Filter by notes section" value={notesSection} onChange={event => {
+                        setNotesSection(event.target.value); setInstructorLabel(sections.find(resource => resource.notesSection === event.target.value)?.instructor || '');
+                      }}>
+                        <option value="">All notes sections</option>
+                        {sections.map(resource => <option key={resource.notesSection} value={resource.notesSection}>{!courseId ? `${resource.course} · ` : ''}{resource.path || 'Course root'}</option>)}
+                      </select>}
+                      {!demo && instructors.length > 0 && <select className="ls-course-filter" aria-label="Filter by instructor" value={instructor} onChange={event => setInstructor(event.target.value)}>
+                        <option value="">All instructors</option>
+                        {instructors.map(name => <option key={name} value={name}>{name}</option>)}
+                      </select>}
+                      {!demo && notesSection && onLabelNotes && <label className="ls-instructor-label">Instructor for this notes section
+                        <input aria-label="Instructor for this notes section" value={instructorLabel} maxLength={100} onChange={event => setInstructorLabel(event.target.value)} placeholder="Enter instructor name" />
+                        <button className="ls-chip" onClick={() => onLabelNotes(notesSection, instructorLabel)}>Save instructor</button>
+                      </label>}
                     </div>}
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
-                    <div className="ls-footer"><span>{footer}</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice || semantic.message}</span></div>
+                    <div className="ls-footer"><span>{footer}</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice || pdf.message || semantic.message}</span></div>
                   </motion.div>
                 ) : null}
               </AnimatePresence>

@@ -39,6 +39,7 @@ export function normalizeToc(toc, course, accountId) {
           url: `${LEARN_ORIGIN}/d2l/le/content/${course.id}/viewContent/${id}/View`,
           modifiedAt: topic.LastModifiedDate || null,
           topicId: id, topicType: topic.TopicType ?? null,
+          ...(type === 'PDF' && sourceUrl?.origin === LEARN_ORIGIN && sourceUrl.pathname.startsWith('/content/') ? { pdfUrl: sourceUrl.href } : {}),
           ...(learnLaunchUrl(topic.Url, course.id) ? { launchUrl: learnLaunchUrl(topic.Url, course.id) } : {}),
           // Raw URLs are kept only for accessible HTML content or a known tool.
           ...(service ? { targetUrl: service.url } : sourceUrl?.origin === LEARN_ORIGIN && /\.html?$/i.test(sourceUrl.pathname) ? { contentUrl: sourceUrl.href } : {}),
