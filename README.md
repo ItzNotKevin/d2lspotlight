@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.5.1 verifies your LEARN login before searching saved results on any tab.** Reload the extension and webpage to enable the session gate.
+
 **v0.5.0 adds course website search:** open a LEARN course home to detect matching Waterloo CS course/term links, then click **Include website** to index public HTML pages and search their sections. Course/source filters, section links and official-outline references are supported. See [COURSE_WEBSITE_SEARCH.md](COURSE_WEBSITE_SEARCH.md) for setup, permissions and limits.
 
 **v0.4.1 fixes shortcut reopening:** a closing overlay can reopen immediately, and shortcut handling resolves the focused tab when Chrome omits the command's tab argument. Reload the extension once and refresh LEARN/Piazza tabs to activate the update.
@@ -134,3 +136,6 @@ Latest semantic update: special STAT230/STAT231 subject rules and professor-to-a
 Real term-specific outlines can be collected through your signed-in Chrome viewer with `npm run collect:outlines -- --term F26`, embedded with `npm run embed:outlines -- outline-data/collected/F26/outlines.json`, and packaged by `npm run build`. Collection resumes from local checkpoints. See [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md) for browser setup, coverage and current limitations. A uniquely matching outline takes precedence over academic-calendar course context.
 
 Outline extraction now covers 775/1,739 explicit weekly plans (44.6%) and 1,123 structured teaching plans (64.6%). See [the parsing results](OUTLINE_PARSING_RESULTS.md) for coverage definitions, remaining layouts, and offline rebuild commands.
+# LEARN session verification
+
+Spotlight checks your LEARN login before searching saved LEARN resources, PDF text, or associated website pages, including when opened on another tab. Search pauses while verification is pending or fails. Sign in through Open LEARN, then use Check LEARN login; returning to the tab also rechecks. This uses narrowly scoped host access to `https://learn.uwaterloo.ca/*` and your existing browser session, without storing passwords. Piazza keyword results retain their existing source behavior.

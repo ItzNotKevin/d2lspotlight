@@ -16,14 +16,15 @@ export function LearnSpotlight(props) {
   const [version] = useState(() => chrome.runtime.getManifest().version);
   const [index, setIndex] = useState(emptyIndex);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('Loading saved resources…');
+  const [message, setMessage] = useState('Checking your LEARN login before searching…');
   const [diagnostics, setDiagnostics] = useState([]);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [storageBytes, setStorageBytes] = useState(null);
   const [semanticEnabled, setSemanticEnabled] = useState(false);
   const [verifiedGeneration, setVerifiedGeneration] = useState(null);
+  const [accessibleCourses, setAccessibleCourses] = useState([]);
   const [pdfFilters, setPdfFilters] = useState({});
-  const pdf = usePdfIndex({ index, isOpen: props.isOpen, verifiedGeneration, filters: pdfFilters });
+  const pdf = usePdfIndex({ index, isOpen: props.isOpen, verifiedGeneration: location.origin === LEARN_ORIGIN ? verifiedGeneration : null, filters: pdfFilters });
   const sitesConnection = useCourseSites({ index, isOpen: props.isOpen, verifiedGeneration });
 
   const [associations, setAssociations] = useState({ key: '', pairs: {} });
@@ -87,6 +88,8 @@ export function LearnSpotlight(props) {
     try {
       const session = await client.connect();
       signal.throwIfAborted();
+      setAccessibleCourses(session.courses.map(course => course.id));
+      setVerifiedGeneration(previous.generation);
       const sameCourses = session.courses.map((course) => course.id).sort().join(',') === previous.courses.map((course) => course.id).sort().join(',');
       const pdfDestinationsReady = previous.resources.every(resource => resource.type !== 'PDF' || resource.pdfUrl);
       if (!force && sameCourses && pdfDestinationsReady && previous.updatedAt && !previous.failedCourses.length && Date.now() - previous.updatedAt < REFRESH_INTERVAL) {
@@ -113,25 +116,70 @@ export function LearnSpotlight(props) {
         await indexMessage('clear').catch(() => {});
         setIndex(emptyIndex());
       }
-      setMessage(`${error.message} ${['SESSION', 'NOT_JSON'].includes(error.code) ? '' : 'Saved results remain available.'}`);
+      setVerifiedGeneration(null);
+      setMessage(`${error.message} LEARN search is paused until your session can be verified.`);
       setDiagnostics((current) => [...current, { stage: 'refresh', result: error.code || 'FAILED' }]);
     } finally { if (!signal.aborted) setBusy(false); }
   }
 
+  async function checkSavedSession() {
+    setVerifiedGeneration(null);
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    setBusy(true);
+    setMessage('Checking your LEARN login before searching…');
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'learn-session' });
+      if (next.signal.aborted) return;
+      if (!result?.ok) throw new Error(result?.error || 'Could not verify your LEARN login.');
+      setIndex(result.index);
+      setAccessibleCourses(result.courseIds);
+      setVerifiedGeneration(result.index.generation);
+      setMessage('LEARN login confirmed. Searching your saved resources.');
+    } catch (error) {
+      if (!next.signal.aborted) setMessage(`${error.message} Open LEARN to sign in, then check your login again.`);
+    } finally { if (!next.signal.aborted) setBusy(false); }
+  }
+
   useEffect(() => {
+    setVerifiedGeneration(null);
     if (!props.isOpen) return;
     let active = true;
     indexMessage('read').then((saved) => {
       if (!active) return;
       setIndex(saved);
       if (onLearn) refresh();
-      else setMessage(saved.resources.length ? 'Searching saved resources. Open LEARN to refresh.' : 'Open Spotlight on LEARN to index your courses.');
+      else checkSavedSession();
     }).catch((error) => { if (active) setMessage(error.message); });
     const changed = (changes, area) => {
-      if (active && area === 'local' && changes[CACHE_KEY]) setIndex(changes[CACHE_KEY].newValue || emptyIndex());
+      if (active && area === 'local' && changes[CACHE_KEY]) {
+        const saved = changes[CACHE_KEY].newValue || emptyIndex();
+        setIndex(current => {
+          if (current.accountId !== saved.accountId || current.generation !== saved.generation) setVerifiedGeneration(null);
+          return saved;
+        });
+      }
     };
+    const recheck = () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      if (onLearn) refresh(); else checkSavedSession();
+    };
+    const hide = () => {
+      setVerifiedGeneration(null);
+      controller.current?.abort();
+    };
+    const visibility = () => { if (document.visibilityState === 'hidden') hide(); else recheck(); };
+    window.addEventListener('focus', recheck);
+    window.addEventListener('blur', hide);
+    document.addEventListener('visibilitychange', visibility);
     const unsubscribe = subscribeStorageChanges(changed);
-    return () => { active = false; controller.current?.abort(); unsubscribe(); };
+    return () => {
+      active = false; controller.current?.abort(); unsubscribe();
+      window.removeEventListener('focus', recheck);
+      window.removeEventListener('blur', hide);
+      document.removeEventListener('visibilitychange', visibility);
+    };
   }, [props.isOpen]);
 
   async function clear() {
@@ -158,20 +206,21 @@ export function LearnSpotlight(props) {
         </button>
         {onLearn
           ? <button className="ls-chip" disabled={busy} onClick={() => refresh(true)}>{busy ? 'Refreshing…' : 'Refresh courses'}</button>
-          : <a className="ls-chip" href={LEARN_ORIGIN} target="_blank" rel="noreferrer">Open LEARN</a>}
+          : <><a className="ls-chip" href={LEARN_ORIGIN} target="_blank" rel="noreferrer">Open LEARN / sign in</a><button className="ls-chip" disabled={busy} onClick={checkSavedSession}>{busy ? 'Checking login…' : 'Check LEARN login'}</button></>}
         {index.accountId && <button className="ls-chip" onClick={clear}>Clear LEARN data</button>}
         <button className="ls-chip" aria-pressed={pdf.enabled} onClick={pdf.toggle}>PDF indexing: {pdf.enabled ? 'on' : 'paused'}</button>
         {onLearn && <button className="ls-chip" onClick={pdf.retry}>Retry PDF indexing</button>}
         {!!pdf.status?.documents.length && <button className="ls-chip" onClick={pdf.clear}>Clear PDF text</button>}
         {diagnostics.length > 0 && <button className="ls-chip" onClick={() => setShowDiagnostics((value) => !value)}>{showDiagnostics ? 'Hide' : 'Show'} diagnostics</button>}
       </div>
-      <p role="status">{pdf.message || (onLearn ? 'PDF text will be indexed after your LEARN session is checked.' : 'Saved PDF text is searchable. Open LEARN to index more PDFs.')}{pdf.status ? ` · ${pdf.status.documents.length} PDFs · ${(pdf.status.chars * 2 / (1024 * 1024)).toFixed(1)} MB text (approx.)` : ''}</p>
+      <p role="status">{!index.accountId || !verifiedGeneration || verifiedGeneration !== index.generation ? 'LEARN and PDF search require a verified login.' : pdf.message || (onLearn ? 'PDF text will be indexed after your LEARN session is checked.' : 'Saved PDF text is searchable. Open LEARN to index more PDFs.')}{pdf.status ? ` · ${pdf.status.documents.length} PDFs · ${(pdf.status.chars * 2 / (1024 * 1024)).toFixed(1)} MB text (approx.)` : ''}</p>
       {showDiagnostics && <textarea className="ls-diagnostics" aria-label="Connection diagnostics — copy to share" readOnly value={JSON.stringify({ adapter: 'browser-session-v2', events: diagnostics }, null, 2)} />}
     </div>
   );
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';
-  const combined = React.useMemo(() => associateCourses(index.courses, piazza.index.courses,
-    [...index.resources.map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...(index.siteResources || []), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey]);
+  const learnSearchReady = Boolean(props.isOpen && index.accountId && verifiedGeneration === index.generation);
+  const combined = React.useMemo(() => associateCourses(learnSearchReady ? index.courses.filter(course => accessibleCourses.includes(course.id)) : [], piazza.index.courses,
+    [...(learnSearchReady ? index.resources.filter(resource => accessibleCourses.includes(resource.courseId)) : []).map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...(learnSearchReady ? (index.siteResources || []).filter(resource => accessibleCourses.includes(resource.courseId)) : []), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey, learnSearchReady, accessibleCourses]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
 
   return <Spotlight {...props} resources={combined.resources} courses={combined.courses} history={history}
@@ -179,7 +228,7 @@ export function LearnSpotlight(props) {
       try { setIndex(await indexMessage('label-notes', { accountId: index.accountId, section, name })); }
       catch (error) { setMessage(error.message); }
     } : null}
-    semanticEnabled={semanticEnabled}
+    semanticEnabled={semanticEnabled && learnSearchReady} pdfSearchEnabled={learnSearchReady}
     demo={false} connection={<>{connection}{sitesConnection}{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:
       <select aria-label={`Confirm course association for ${choice.piazza.name}`} value="" onChange={(event) => {

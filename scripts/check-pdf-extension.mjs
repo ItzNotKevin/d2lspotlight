@@ -14,7 +14,7 @@ for (const path of ['src', 'dist', 'background.js', 'semantic.html']) await cp(r
 // import is disallowed in service workers, and production has no debug globals.
 await writeFile(join(extension, 'background.js'), `${await readFile('background.js', 'utf8')}\nglobalThis.__spotlightToggleForTest = toggleSpotlight;\n`);
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
-await writeFile(join(extension, 'manifest.json'), JSON.stringify({ ...manifest, host_permissions: ['https://learn.uwaterloo.ca/*', 'https://student.cs.uwaterloo.ca/*'] }));
+await writeFile(join(extension, 'manifest.json'), JSON.stringify({ ...manifest, host_permissions: ['https://learn.uwaterloo.ca/*', 'https://student.cs.uwaterloo.ca/*', 'https://example.test/*'] }));
 const browser = spawn(process.env.SPOTLIGHT_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   ['--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-extension-debugging',
     `--user-data-dir=${join(temporary, 'profile')}`, '--remote-debugging-pipe'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
@@ -22,6 +22,8 @@ let sequence = 0, buffered = '';
 const pending = new Map();
 const errors = [];
 const requested = [];
+let loggedOut = false;
+let sessionDelay = 0;
 function call(method, params = {}, sessionId) {
   return new Promise((resolveCall, reject) => {
     const id = ++sequence;
@@ -74,8 +76,14 @@ browser.stdio[4].on('data', data => {
       const { requestId, request } = message.params;
       requested.push(request.url);
       const [type, body] = fixture(request.url);
-      call('Fetch.fulfillRequest', { requestId, responseCode: 200,
-        responseHeaders: [{ name: 'Content-Type', value: type }], body: Buffer.from(body).toString('base64') }, message.sessionId).catch(error => errors.push(error.message));
+      const responseCode = loggedOut && request.url.endsWith('/users/whoami') ? 401 : 200;
+      const delay = request.url.endsWith('/d2l/api/versions/') ? sessionDelay : 0;
+      const fulfill = () => call('Fetch.fulfillRequest', { requestId, responseCode,
+        responseHeaders: [{ name: 'Content-Type', value: type }], body: Buffer.from(body).toString('base64') }, message.sessionId).catch(error => {
+          // A tab losing focus cancels its verification request before CDP replies.
+          if (!error.message.includes('Invalid InterceptionId')) errors.push(error.message);
+        });
+      if (delay) setTimeout(fulfill, delay); else fulfill();
     }
   }
 });
@@ -203,7 +211,7 @@ try {
   })()`);
   assert.equal(remaining.documents.length, 0);
   assert.equal(errors.length, 0, JSON.stringify(errors));
-  assert.equal(requested.filter(url => url.endsWith('notes.pdf')).length, 2);
+  assert.equal(new Set(requested.filter(url => url.endsWith('notes.pdf'))).size, 2, 'Blur cancellation may retry a PDF, but must not expand its scope');
   const externalRoot = 'https://student.cs.uwaterloo.ca/~cs246/F26/';
   await call('Fetch.enable', { patterns: [{ urlPattern: 'https://student.cs.uwaterloo.ca/*', requestStage: 'Request' }] }, background);
   await call('Page.navigate', { url: `${origin}/d2l/home/246` }, page);
@@ -243,11 +251,39 @@ try {
   assert.ok(!requested.some(url => url.startsWith('https://outline.uwaterloo.ca/')), 'Reference must open as a link rather than crawling another site');
   await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Remove website data').click()`);
   await until(() => evaluate(background, "chrome.storage.local.get('learnSpotlightIndexV1')"), saved => saved.learnSpotlightIndexV1.siteResources?.length === 0, 'Removing website data must remove searchable passages');
+  await call('Fetch.enable', { patterns: [{ urlPattern: `${origin}/*`, requestStage: 'Request' }] }, background);
+  const { targetId: crossTab } = await call('Target.createTarget', { url: 'about:blank' });
+  const { sessionId: crossPage } = await call('Target.attachToTarget', { targetId: crossTab, flatten: true });
+  await call('Runtime.enable', {}, crossPage);
+  await call('Fetch.enable', { patterns: [{ urlPattern: 'https://example.test/*', requestStage: 'Request' }] }, crossPage);
+  await call('Page.navigate', { url: 'https://example.test/' }, crossPage);
+  await until(() => evaluate(crossPage, 'document.body?.textContent'), Boolean, 'Other tab must load');
+  await call('Page.bringToFront', {}, crossPage);
+  loggedOut = true;
+  sessionDelay = 700;
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === 'https://example.test/');
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['dist/spotlight.js'] });
+  })()`);
+  await until(() => evaluate(crossPage, `Boolean(${root}?.querySelector('input[type=search]'))`), Boolean, 'Other-tab Spotlight must open');
+  await evaluate(crossPage, `(() => {
+    const input = ${root}.querySelector('input[type=search]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'stat230');
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  })()`);
+  const crossRows = () => evaluate(crossPage, `${root}?.querySelectorAll('[role=option]').length`);
+  assert.equal(await crossRows(), 0, 'Cached resources must be hidden while session verification is pending');
+  await until(() => evaluate(crossPage, `${root}?.textContent`), text => text?.includes('Sign in to LEARN'), 'Logged-out cross-tab check must request sign-in');
+  assert.equal(await crossRows(), 0, 'Logged-out users must not see cached keyword or PDF results');
+  loggedOut = false;
+  await evaluate(crossPage, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Check LEARN login').click()`);
+  assert.equal(await crossRows(), 0, 'Retry must keep cached results hidden until verification succeeds');
+  await until(crossRows, count => count > 0, 'Confirmed login must unlock saved resources on a different tab');
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }
