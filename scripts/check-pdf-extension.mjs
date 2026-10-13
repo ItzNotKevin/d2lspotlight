@@ -10,6 +10,9 @@ import { searchPdfFixture } from '../tests/fixtures/search-pdf.js';
 const temporary = await mkdtemp(join(tmpdir(), 'spotlight-pdf-check-'));
 const extension = join(temporary, 'extension');
 for (const path of ['src', 'dist', 'background.js', 'semantic.html']) await cp(resolve(path), join(extension, path), { recursive: true });
+// Expose the statically imported handler only in the disposable fixture: dynamic
+// import is disallowed in service workers, and production has no debug globals.
+await writeFile(join(extension, 'background.js'), `${await readFile('background.js', 'utf8')}\nglobalThis.__spotlightToggleForTest = toggleSpotlight;\n`);
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
 await writeFile(join(extension, 'manifest.json'), JSON.stringify({ ...manifest, host_permissions: ['https://learn.uwaterloo.ca/*'] }));
 const browser = spawn(process.env.SPOTLIGHT_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -65,7 +68,8 @@ browser.stdio[4].on('data', data => {
   }
 });
 async function evaluate(session, expression) {
-  const result = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, session);
+  const result = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, session)
+    .catch(error => { throw new Error(`${error.message}: ${expression.slice(0, 140)}`); });
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
   return result.result.value;
 }
@@ -99,6 +103,23 @@ try {
   })()`);
   const root = "document.getElementById('learn-spotlight-root')?.shadowRoot";
   await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 PDFs'), 'Automatic PDF indexing must finish');
+  async function closeAndReopen() {
+    await evaluate(background, `(async () => {
+      const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.getElementById('learn-spotlight-root').closeSpotlight() });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['dist/spotlight.js'] });
+      return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.getElementById('learn-spotlight-root')?.isSpotlightOpen() }))[0].result;
+    })()`).then(open => assert.equal(open, true, 'A closing root must reopen instead of swallowing the toggle'));
+  }
+  await closeAndReopen();
+  const { targetId: otherTab } = await call('Target.createTarget', { url: 'about:blank' });
+  const { sessionId: otherPage } = await call('Target.attachToTarget', { targetId: otherTab, flatten: true });
+  await call('Page.bringToFront', {}, otherPage);
+  await closeAndReopen();
+  await call('Page.bringToFront', {}, page);
+  await new Promise(resolveWait => setTimeout(resolveWait, 350));
+  assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true, 'Delayed background-tab exit must not remove the reopened overlay');
+  await call('Target.closeTarget', { targetId: otherTab });
   async function change(selector, value) {
     await evaluate(page, `(() => {
       const element = ${root}.querySelector(${JSON.stringify(selector)});
@@ -139,6 +160,17 @@ try {
   })()`);
   assert.equal(stored.ok, true);
   assert.equal(stored.matches[0].pdfPage, 2);
+  // Native OS accelerator delivery and idle-worker wake-up require a manual
+  // Chrome check; the headless debug fixture cannot reliably exercise them.
+  assert.equal(await evaluate(background, `(async () => {
+    const toggleSpotlight = globalThis.__spotlightToggleForTest;
+    if (!await toggleSpotlight()) throw new Error('Shortcut fallback did not resolve the focused tab');
+    if (!await toggleSpotlight()) throw new Error('Shortcut fallback did not reopen');
+    const tab = (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+    return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.getElementById('learn-spotlight-root')?.isSpotlightOpen() }))[0].result;
+  })()`), true, 'Shortcut must resolve the focused tab when its event omits the tab');
+  await new Promise(resolveWait => setTimeout(resolveWait, 350));
+  assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true);
   await evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
     return chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => chrome.runtime.sendMessage({ type: 'learn-index', action: 'clear' }) });
@@ -151,7 +183,8 @@ try {
   assert.equal(errors.length, 0, JSON.stringify(errors));
   assert.equal(requested.filter(url => url.endsWith('notes.pdf')).length, 2);
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
-    keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed', clearLearnData: 'passed', browserErrors: 0 }, null, 2));
+    keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
+    interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', clearLearnData: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }

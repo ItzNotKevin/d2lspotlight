@@ -36,11 +36,34 @@ export function mountSpotlight(host, onExit = () => {}, { live = false } = {}) {
     if (!open || disposed) return;
     if (live && !extensionContextAlive()) { destroy(); return; }
     open = false;
-    root.render(<Component isOpen={false} handleClose={close} onExited={destroy} />);
+    render();
+  }
+
+  function finishClose() {
+    // A delayed exit callback must not dispose a root reopened by the shortcut.
+    if (!open) destroy();
+  }
+
+  function render() {
+    root.render(<Component isOpen={open} handleClose={close} onExited={finishClose} />);
+  }
+
+  function toggle() {
+    if (disposed) return;
+    if (live && !extensionContextAlive()) { destroy(); return; }
+    if (open) close();
+    else {
+      open = true;
+      render();
+      // The input component stays mounted when an exit is interrupted.
+      queueMicrotask(() => shadow.querySelector('input[type="search"]')?.focus());
+    }
   }
 
   host.closeSpotlight = close;
+  host.toggleSpotlight = toggle;
+  host.isSpotlightOpen = () => open && !disposed;
   host.isSpotlightContextAlive = () => !disposed && (!live || extensionContextAlive());
-  root.render(<Component isOpen handleClose={close} onExited={destroy} />);
-  return { close };
+  render();
+  return { close, toggle };
 }
