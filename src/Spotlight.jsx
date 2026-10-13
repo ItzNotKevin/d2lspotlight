@@ -182,7 +182,7 @@ function SearchResultsContainer({ listRef, results, query, selectedIndex, onHove
   );
 }
 
-export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticEnabled = false, pdfRevision = 0, onFiltersChange, onLabelNotes }) {
+export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticEnabled = false, pdfSearchEnabled = true, pdfRevision = 0, onFiltersChange, onLabelNotes }) {
   const shortcuts = [
     { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
     ...(demo ? [{ id: 'course', label: courseLabel, shortLabel: 'Course', icon: BookOpen }] : []),
@@ -213,7 +213,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const semantic = useSemanticSearch({ enabled: semanticEnabled && !demo && remoteResults === null,
     isOpen, resources, query: searchValue, courseId, source, documents, recent, history });
   const filters = useMemo(() => ({ courseId, source, documents, recent, notesSection, instructor }), [courseId, source, documents, recent, notesSection, instructor]);
-  const pdf = usePdfSearch({ isOpen: isOpen && !demo && remoteResults === null, query: searchValue, filters, resources, revision: pdfRevision, history });
+  const pdf = usePdfSearch({ isOpen: isOpen && pdfSearchEnabled && !demo && remoteResults === null, query: searchValue, filters, resources, revision: pdfRevision, history });
   useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
   const scopedPdfs = useMemo(() => filterResources(resources, { courseId, source }).filter(resource => resource.type === 'PDF'), [resources, courseId, source]);
   const sections = [...new Map(scopedPdfs.filter(resource => resource.notesSection).map(resource => [resource.notesSection, resource])).values()];

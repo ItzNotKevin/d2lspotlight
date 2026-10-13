@@ -5,6 +5,7 @@ import { clearSemanticCache, registerSemanticSearch } from './src/search/semanti
 import { clearPdfCache, registerPdfSearch } from './src/search/pdf/background.js';
 import { toggleSpotlight } from './src/toggle.js';
 import { registerCourseSites } from './src/sites/background.js';
+import { registerLearnSession } from './src/learn/session.js';
 
 registerSemanticSearch();
 registerPdfSearch();
@@ -42,6 +43,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 
 const indexStore = createIndexStore(chrome.storage.local);
+registerLearnSession(indexStore);
 registerCourseSites(indexStore);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type !== 'learn-index' || sender.id !== chrome.runtime.id || !sender.tab) return;
