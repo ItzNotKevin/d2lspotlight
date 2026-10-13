@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Learn Spotlight",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Search course resources using your signed-in Waterloo LEARN session.",
   "permissions": [
     "activeTab",
@@ -10,8 +10,9 @@
     "offscreen"
   ],
   "minimum_chrome_version": "116",
+  "optional_host_permissions": ["https://student.cs.uwaterloo.ca/*", "https://www.student.cs.uwaterloo.ca/*"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'none'; frame-src 'none'; media-src 'none'; connect-src 'self' https://student.cs.uwaterloo.ca https://www.student.cs.uwaterloo.ca"
   },
   "background": {
     "service_worker": "background.js",

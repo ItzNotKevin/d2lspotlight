@@ -135,6 +135,8 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.service && <span>{resource.service}</span>}
           {resource.directLink && <span>Opens directly</span>}
           {resource.pdfMatch && <span>PDF page {resource.pdfPage}{resource.pdfPartial ? ' · partial index' : ''}</span>}
+          {resource.websiteSection && <span>Website section</span>}
+          {resource.websiteReference && <span>Linked reference</span>}
           {resource.instructor && <span>{resource.instructor}</span>}
           {fuzzy && <span>Similar spelling</span>}
           {resource.outlineWeek ? <span title="Topics inferred from the course outline’s weekly plan; document contents have not been read.">Outline suggests Week {resource.outlineWeek.week}</span> : resource.semanticMatch && <span>Related meaning</span>}
@@ -400,9 +402,10 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                   >
                     {remoteResults === null && <div className="ls-filters" role="group" aria-label="Search filters">
                       {!demo && <select className="ls-course-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
-                        <option value="">LEARN + Piazza</option>
+                        <option value="">All sources</option>
                         <option value="LEARN">LEARN only</option>
                         <option value="Piazza">Piazza only</option>
+                        <option value="Website">Course websites only</option>
                       </select>}
                       {shortcuts.map((shortcut) => {
                         const Icon = shortcut.icon;

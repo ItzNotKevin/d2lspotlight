@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.5.0 adds course website search:** open a LEARN course home to detect matching Waterloo CS course/term links, then click **Include website** to index public HTML pages and search their sections. Course/source filters, section links and official-outline references are supported. See [COURSE_WEBSITE_SEARCH.md](COURSE_WEBSITE_SEARCH.md) for setup, permissions and limits.
+
 **v0.4.1 fixes shortcut reopening:** a closing overlay can reopen immediately, and shortcut handling resolves the focused tab when Chrome omits the command's tab argument. Reload the extension once and refresh LEARN/Piazza tabs to activate the update.
 
 **v0.4.0 adds PDF content search:** selectable text is indexed locally by page, so `permutation` can find a passage inside generic STAT 230 notes and open the matching PDF page. Course, notes-section and saved instructor filters are available. See [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md) for setup, indexing limits and live testing. Scanned/handwritten notes still need future OCR. Older roadmap sections below describe the pre-PDF implementation.

@@ -13,12 +13,20 @@ const requests = new Map();
 
 export async function ensureDocument() {
   const documentUrls = [chrome.runtime.getURL('semantic.html')];
-  if ((await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls })).length) return;
-  if (!creating) {
-    creating = chrome.offscreen.createDocument({ url: 'semantic.html', reasons: ['WORKERS'],
+  const exists = (await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls })).length;
+  if (!exists && !creating) {
+    creating = chrome.offscreen.createDocument({ url: 'semantic.html', reasons: ['WORKERS', 'DOM_PARSER'],
       justification: 'Run local semantic search without blocking the course search interface.' }).finally(() => { creating = null; });
   }
-  await creating;
+  if (!exists) await creating;
+  // The document can exist before its module imports/listeners finish loading.
+  // Wait for the parser/search entrypoint instead of losing the first request.
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    try { if ((await chrome.runtime.sendMessage({ target: 'spotlight-offscreen', action: 'ready' }))?.ok) return; } catch {}
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error('Local parsers did not become ready. Reload the extension and webpage.');
 }
 
 async function snapshot() {
@@ -28,7 +36,7 @@ async function snapshot() {
   const associationKey = `courseAssociations:${JSON.stringify([learn.accountId, piazza.accountId])}`;
   const confirmations = await chrome.storage.local.get(associationKey);
   const rawResources = [[learn, 'LEARN'], [piazza, 'Piazza']].flatMap(([index, source]) => index.accountId
-    ? index.resources.map((resource) => ({ ...resource, source, accountId: index.accountId })) : []);
+    ? [...index.resources, ...(source === 'LEARN' ? index.siteResources || [] : [])].map((resource) => ({ ...resource, source: resource.source || source, accountId: index.accountId })) : []);
   const learnCourses = new Map((learn.courses || []).map(course => [course.id, course]));
   const resources = associateCourses(learn.courses || [], piazza.courses || [], rawResources, confirmations[associationKey] || {}).resources.map(resource => {
     const course = learnCourses.get(resource.courseId);

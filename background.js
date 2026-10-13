@@ -4,6 +4,7 @@ import { PIAZZA_CACHE_KEY } from './src/piazza/cache.js';
 import { clearSemanticCache, registerSemanticSearch } from './src/search/semantic/background.js';
 import { clearPdfCache, registerPdfSearch } from './src/search/pdf/background.js';
 import { toggleSpotlight } from './src/toggle.js';
+import { registerCourseSites } from './src/sites/background.js';
 
 registerSemanticSearch();
 registerPdfSearch();
@@ -41,11 +42,12 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 
 const indexStore = createIndexStore(chrome.storage.local);
+registerCourseSites(indexStore);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type !== 'learn-index' || sender.id !== chrome.runtime.id || !sender.tab) return;
   let onLearn = false;
   try { onLearn = new URL(sender.url).origin === 'https://learn.uwaterloo.ca'; } catch {}
-  if (['begin', 'commit', 'label-notes'].includes(message.action) && !onLearn) {
+  if (['begin', 'commit', 'label-notes', 'discover-sites', 'begin-site', 'commit-site', 'remove-site'].includes(message.action) && !onLearn) {
     reply({ ok: false, error: 'Refresh from a signed-in LEARN tab.' });
     return;
   }

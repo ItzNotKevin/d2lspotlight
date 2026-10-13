@@ -1,5 +1,7 @@
 # Bugs and next steps — developer handoff
 
+**v0.5.0 course websites:** a bounded adapter now detects matching Waterloo CS site links on the visited LEARN course home, requests optional host access, and indexes public HTML passages/references with course/source filters. Live CS 246 public-page parsing is verified; live signed-in LEARN detection and first-use permission prompts need a browser check. See [COURSE_WEBSITE_SEARCH.md](COURSE_WEBSITE_SEARCH.md).
+
 **v0.4.1 shortcut fix:** a closing root previously remained reusable while repeated injection only called its no-op close function. Reopening now reverses the exit, and a delayed exit callback cannot dispose a reopened root. The command handler also queries the focused tab when its optional tab argument is absent. The browser regression checks rapid reopening, background-tab transitions and real focused-tab fallback. Native OS shortcuts, desktop app switching and idle-worker wake-up still need a manual Chrome check; the headless debugger could not validate idle-worker event delivery.
 
 **v0.4.0 update:** selectable-text PDF indexing and page-level search are implemented; see [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md). Older mentions of PDFs remaining unread are superseded. OCR, passage embeddings and live Waterloo validation remain outstanding.
