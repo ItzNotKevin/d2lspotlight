@@ -1,0 +1,33 @@
+# Course website search — v0.5.0
+
+Spotlight can discover course websites linked from a signed-in LEARN course home, index public HTML pages locally, and search their page/section text. The first adapter supports the Waterloo CS hosts `student.cs.uwaterloo.ca` and `www.student.cs.uwaterloo.ca`, with course-and-term directories such as `~cs246/F26/`. This does not claim support for every external website.
+
+## Try CS 246
+
+1. Reload the unpacked extension and refresh the LEARN tab. Check **v0.5.0** in the footer.
+2. Open the **CS 246 course home** on LEARN, then open Spotlight. After the session check, it reads visible links, including links in open Shadow DOM. It identifies the CS 246 F26 website by the linked URL's course code and term, and shows **Course website detected**. It also makes a second discovery pass for late-loading widgets.
+3. Click **Include website** and grant Chrome access to the specific website host. The request is optional; other search features work without it. Pages are indexed sequentially, and a status message reports page counts or errors.
+4. Search `cs246 late policy`, `cs246 office hours`, `cs246 schedule`, or `cs246 course outline`. Use the course filter and **Course websites only** source filter to narrow results. Actual website results show passages and a Website label. Enter/click opens the selected page, heading anchor, or text-fragment destination.
+5. If no link is detected, paste `https://student.cs.uwaterloo.ca/~cs246/F26/index.shtml` into **External course website URL** while on the CS 246 LEARN home and click **Add course website**. Then include it. Closed Shadow DOM or unavailable announcements can prevent automatic detection; the manual URL is checked against the enrolled course and known term.
+
+**Open website** opens the detected site without indexing. **Allow / refresh website** updates saved pages. Closing Spotlight cancels an active crawl. **Remove website data** removes the site's passages/history and saved site entry; opening the course home again can rediscover its link. **Dismiss website** removes an unindexed candidate. Neither action revokes host access; Chrome extension settings control that permission. Saved results remain searchable from other normal websites.
+
+## Coverage and boundaries
+
+- Discovery uses the currently visited `/d2l/home/{courseId}` page, checked against your saved, verified LEARN enrollment. It does not fetch every course home or announcements API in the background. Matching code/term links can be suggested even when an announcement does not explicitly say “does not use LEARN.” Known conflicting terms, courses, lookalike hosts, credentials and query-bearing seed URLs are rejected.
+- The crawler follows navigation and content links only within the selected HTTPS host and course/term directory. Requests omit credentials, reject redirects and use timeouts. It reads up to **12 HTML pages**, **256 KiB per response**, **12 headings per page**, **24,000 characters per section**, and **150 indexed records per site**. Passages are split at word boundaries into at most 1,500 characters. Up to ten site entries and 600 website records are saved overall. Reached limits and page failures are labelled partial.
+- Navigation is used to discover pages, but removed from searchable text. Parsing happens in the local offscreen document, without executing page scripts or loading media/stylesheets. Heading anchors are preferred; otherwise Chrome text fragments attempt to select a passage. Text-fragment landing depends on the rendered page and browser support, so it is best effort.
+- References to other Waterloo pages, including `outline.uwaterloo.ca`, are saved as **Linked reference** results. A short Course Outline page with a single ordinary official outline link opens that observed destination directly; instruction pages keep their own route. References are not recursively fetched. On this CS 246 site, Schedule directs students to the outline for assessment deadlines; this adapter does not claim to have extracted the authenticated outline's deadline data.
+- Linked PDFs can appear as reference links, but external PDF text extraction, authenticated course repositories, full Piazza threads, JavaScript-only websites, and arbitrary domains are outside this first adapter. Existing LEARN PDF content search remains available.
+- Website text shares the extension's `storage.local` budget with LEARN/Piazza metadata. Quota errors preserve the previous index and are reported. A successful crawl replaces that site's records; a partial crawl retains older records missing from the partial result. Course metadata refresh keeps website records/history for accessible courses and prunes removed courses. Account changes and **Clear LEARN data** clear website records. Run tokens prevent cancelled, removed, replaced or old-account crawls from restoring data.
+- Website keyword search is immediate and local. Full passage embeddings are not implemented; optional meaning search continues to use resource metadata. No course text is sent to a third-party service.
+
+## Validation
+
+Website indexing shows the current page number and offers cancellation. After the first opening on a page, a tab-local Command/Ctrl–Shift–K listener can reopen a fully closed overlay without requiring a background command. Chrome still handles the first opening; keyboard input must be focused on the webpage.
+
+- `npm test`: detection and scope rules, HTML passages/anchors, reference handling, course/source filters, bounded downloads/crawls, cancellation, account isolation, permissions and persistent cache/history checks.
+- `npm run check:pdf:extension`: disposable Chrome with intercepted LEARN and course-site fixtures verifies discovery, the actual Include button, offscreen HTML parsing, course/source filters, Enter opening an anchored section, reference results and removal alongside existing PDF/reopening checks. The fixture pregrants the host permission; the actual first-use permission prompt and your live LEARN DOM still need a browser check.
+- `npm run check:sites:live`: a bounded public crawl of the real CS 246 F26 site verifies late-policy, office-hours, schedule and outline queries and the official outline reference. It uses no signed-in session and prints titles/URLs and coverage rather than website text. This is a network-dependent check, separate from unit tests.
+
+References: [CS 246 F26 site](https://student.cs.uwaterloo.ca/~cs246/F26/index.shtml), [Chrome optional permissions](https://developer.chrome.com/docs/extensions/reference/api/permissions).

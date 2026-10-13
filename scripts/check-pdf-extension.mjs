@@ -14,7 +14,7 @@ for (const path of ['src', 'dist', 'background.js', 'semantic.html']) await cp(r
 // import is disallowed in service workers, and production has no debug globals.
 await writeFile(join(extension, 'background.js'), `${await readFile('background.js', 'utf8')}\nglobalThis.__spotlightToggleForTest = toggleSpotlight;\n`);
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
-await writeFile(join(extension, 'manifest.json'), JSON.stringify({ ...manifest, host_permissions: ['https://learn.uwaterloo.ca/*'] }));
+await writeFile(join(extension, 'manifest.json'), JSON.stringify({ ...manifest, host_permissions: ['https://learn.uwaterloo.ca/*', 'https://student.cs.uwaterloo.ca/*'] }));
 const browser = spawn(process.env.SPOTLIGHT_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   ['--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-extension-debugging',
     `--user-data-dir=${join(temporary, 'profile')}`, '--remote-debugging-pipe'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
@@ -34,14 +34,26 @@ browser.on('error', error => { for (const entry of pending.values()) { clearTime
 const origin = 'https://learn.uwaterloo.ca';
 const pdfBytes = searchPdfFixture();
 function fixture(url) {
-  const path = new URL(url).pathname;
+  const destination = new URL(url);
+  const path = destination.pathname;
+  if (destination.hostname === 'student.cs.uwaterloo.ca') {
+    const navigation = '<nav><a href="index.shtml">Home</a><a href="assignments.shtml">Assignment information</a><a href="schedule.shtml">Schedule</a><a href="outline.shtml">Course outline</a><a href="officehours.shtml">Office hours</a></nav>';
+    const body = path.endsWith('assignments.shtml') ? '<h1>Assignment Information</h1><h2 id="lates">Lates</h2><p>Late submissions receive no credit.</p>'
+      : path.endsWith('schedule.shtml') ? '<h1>Schedule</h1><p>Assessment deadlines are in the <a href="outline.shtml">course outline</a>.</p>'
+      : path.endsWith('outline.shtml') ? '<h1>Course Outline</h1><p>Read the <a href="https://outline.uwaterloo.ca/viewer/view/fixture">official outline</a>.</p>'
+      : path.endsWith('officehours.shtml') ? '<h1>Office Hours</h1><p>Visit the teaching team on Wednesdays.</p>'
+      : '<h1>Welcome to CS 246</h1><p>This website holds course information.</p>';
+    return ['text/html', `<html><head><title>CS 246 Fall 2026</title></head><body>${navigation}<main>${body}</main></body></html>`];
+  }
+  if (path === '/d2l/home/246') return ['text/html', '<!doctype html><title>CS 246 LEARN fixture</title><section><h1>CS 246 does NOT use LEARN</h1><p>Course webpage: <a href="https://student.cs.uwaterloo.ca/~cs246/F26/index.shtml">CS 246 course website</a></p><a href="https://student.cs.uwaterloo.ca/~cs246/W26/index.shtml">Old term</a></section>'];
   if (path === '/') return ['text/html', '<!doctype html><title>Fixture LEARN</title><h1>PDF search fixture</h1>'];
   if (path === '/d2l/api/versions/') return ['application/json', JSON.stringify([
     { ProductCode: 'lp', SupportedVersions: ['1.49'] }, { ProductCode: 'le', SupportedVersions: ['1.82'] }])];
   if (path.endsWith('/users/whoami')) return ['application/json', JSON.stringify({ Identifier: 'fixture-account' })];
-  if (path.includes('/enrollments/myenrollments/')) return ['application/json', JSON.stringify({ Items: [230, 231].map(id =>
-    ({ OrgUnit: { Id: id, Code: `STAT_${id}_001_F26`, Name: `STAT ${id} Fall 2026` }, Access: { CanAccess: true } })), PagingInfo: { HasMoreItems: false } })];
+  if (path.includes('/enrollments/myenrollments/')) return ['application/json', JSON.stringify({ Items: [230, 231, 246].map(id =>
+    ({ OrgUnit: { Id: id, Code: `${id === 246 ? 'CS' : 'STAT'}_${id}_001_F26`, Name: `${id === 246 ? 'CS' : 'STAT'} ${id} Fall 2026` }, Access: { CanAccess: true } })), PagingInfo: { HasMoreItems: false } })];
   if (path.endsWith('/content/toc')) {
+    if (path.includes('/246/')) return ['application/json', JSON.stringify({ Modules: [] })];
     const course = path.includes('/230/') ? 230 : 231;
     return ['application/json', JSON.stringify({ Modules: [{ Title: 'Lecture notes', Topics: [], Modules: [{ Title: 'Instructor A', Topics: [
       { TopicId: course, Title: 'week_02.pdf', Url: `/content/enforced/${course}/notes.pdf`, TopicType: 1, LastModifiedDate: '2026-10-12' }
@@ -81,7 +93,7 @@ async function until(operation, assertion, description) {
     if (assertion(value)) return value;
     await new Promise(resolveWait => setTimeout(resolveWait, 100));
   }
-  throw new Error(`${description}: ${JSON.stringify(value)}; errors: ${JSON.stringify(errors)}`);
+  throw new Error(`${description}: ${JSON.stringify(typeof value === 'string' ? value.slice(-1800) : value)}; errors: ${JSON.stringify(errors)}`);
 }
 try {
   const { id } = await call('Extensions.loadUnpacked', { path: extension });
@@ -171,6 +183,16 @@ try {
   })()`), true, 'Shortcut must resolve the focused tab when its event omits the tab');
   await new Promise(resolveWait => setTimeout(resolveWait, 350));
   assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true);
+  await evaluate(page, `${root}.querySelector('input[type=search]').focus()`);
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, page);
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, page);
+  await until(() => evaluate(page, `${root}.querySelector('input[type=search]').value`), value => value === '', 'First Escape must clear the search');
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, page);
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, page);
+  await until(() => evaluate(page, "!document.getElementById('learn-spotlight-root')"), Boolean, 'Escape must fully dispose the overlay');
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
+  await until(() => evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), Boolean, 'Tab-local Command Shift K must reopen a fully disposed overlay');
   await evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
     return chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => chrome.runtime.sendMessage({ type: 'learn-index', action: 'clear' }) });
@@ -182,9 +204,49 @@ try {
   assert.equal(remaining.documents.length, 0);
   assert.equal(errors.length, 0, JSON.stringify(errors));
   assert.equal(requested.filter(url => url.endsWith('notes.pdf')).length, 2);
+  const externalRoot = 'https://student.cs.uwaterloo.ca/~cs246/F26/';
+  await call('Fetch.enable', { patterns: [{ urlPattern: 'https://student.cs.uwaterloo.ca/*', requestStage: 'Request' }] }, background);
+  await call('Page.navigate', { url: `${origin}/d2l/home/246` }, page);
+  await until(() => evaluate(page, 'document.body?.textContent'), text => text?.includes('CS 246 does NOT use LEARN'), 'External course notice must render');
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/d2l/home/246');
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['dist/spotlight.js'] });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => { window.open = url => { window.__pdfTestOpened = url; }; } });
+  })()`);
+  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('CS 246 · Course website detected'), 'Course home link must be automatically discovered');
+  const detected = await evaluate(background, "chrome.storage.local.get('learnSpotlightIndexV1')");
+  assert.equal(detected.learnSpotlightIndexV1.courseSites.length, 1, 'Previous-term site must not be detected');
+  const includeButton = await evaluate(page, `(() => {
+    const button = Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Include website');
+    const bounds = button.getBoundingClientRect();
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, disabled: button.disabled };
+  })()`);
+  assert.equal(includeButton.disabled, false);
+  await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: includeButton.x, y: includeButton.y, button: 'left', clickCount: 1 }, page);
+  await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: includeButton.x, y: includeButton.y, button: 'left', clickCount: 1 }, page);
+  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('5 website pages indexed.'), 'Optional-permission inclusion must index term-local pages');
+  await change('input[type=search]', 'cs246 late policy');
+  await until(rows, text => text?.includes('Lates') && text.includes('Late submissions'), 'Page body search must show late-policy passage');
+  await change('[aria-label="Search source"]', 'Website');
+  await change('[aria-label="Filter by course"]', '246');
+  await until(rows, text => text?.includes('Lates'), 'Website and course filters must retain section match');
+  await evaluate(page, `${root}.querySelector('input[type=search]').focus()`);
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, page);
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, page);
+  assert.equal(await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/d2l/home/246');
+    return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.__pdfTestOpened }))[0].result;
+  })()`), `${externalRoot}assignments.shtml#lates`);
+  await change('input[type=search]', 'cs246 official outline');
+  await until(rows, text => text?.includes('Linked reference'), 'Official outline reference must be searchable');
+  assert.ok(!requested.some(url => url.startsWith('https://outline.uwaterloo.ca/')), 'Reference must open as a link rather than crawling another site');
+  await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Remove website data').click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get('learnSpotlightIndexV1')"), saved => saved.learnSpotlightIndexV1.siteResources?.length === 0, 'Removing website data must remove searchable passages');
+  assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
-    interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', clearLearnData: 'passed', browserErrors: 0 }, null, 2));
+    interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', clearLearnData: 'passed',
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }

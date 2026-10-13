@@ -1,5 +1,11 @@
 import { openEmbeddingCache } from './cache.js';
 import '../pdf/extract.js';
+import '../../sites/parse.js';
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.target !== 'spotlight-offscreen' || message.action !== 'ready' || sender.id !== chrome.runtime.id || sender.tab) return;
+  reply({ ok: true });
+});
 
 let worker;
 let idleTimer;

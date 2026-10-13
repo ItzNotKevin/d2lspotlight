@@ -1,5 +1,9 @@
 # Developer handoff — October 12, 2026
 
+## Course website implementation update
+
+v0.5.0 adds Waterloo CS course-site discovery on the currently visited LEARN home, optional domain permission, bounded public HTML crawling, searchable sections/references, persistent account-scoped records and course/source filters. The offscreen entrypoint now acknowledges readiness before parser requests to avoid losing requests during module startup. See [COURSE_WEBSITE_SEARCH.md](COURSE_WEBSITE_SEARCH.md) for setup and limitations. Private outline/repository content and arbitrary websites are not crawled.
+
 ## PDF implementation update
 
 v0.4.0 adds bounded local selectable-text PDF indexing, verified page snippets and direct page links, course/notes-section/instructor filters, cancellation, account/revision isolation and IndexedDB caching. See [PDF_CONTENT_SEARCH.md](PDF_CONTENT_SEARCH.md). `npm run check:pdf:extension` tests the built extension with intercepted LEARN responses and real fixture PDFs. Live STAT 230 file access and native viewer landing still need the user's browser check. OCR, exact paragraph highlighting and passage embeddings remain future work. The older queue item below describing PDF extraction as unimplemented is superseded by this update.

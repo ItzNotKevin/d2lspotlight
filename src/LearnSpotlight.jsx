@@ -9,6 +9,7 @@ import { piazzaIndexMessage } from './piazza/cache.js';
 import { associateCourses } from './search/associations.js';
 import { usePdfIndex } from './search/pdf/usePdfIndex.jsx';
 import { notesSection } from './search/pdf/core.js';
+import { useCourseSites } from './sites/useCourseSites.jsx';
 
 export function LearnSpotlight(props) {
   const piazza = usePiazzaIndex(props.isOpen);
@@ -23,6 +24,7 @@ export function LearnSpotlight(props) {
   const [verifiedGeneration, setVerifiedGeneration] = useState(null);
   const [pdfFilters, setPdfFilters] = useState({});
   const pdf = usePdfIndex({ index, isOpen: props.isOpen, verifiedGeneration, filters: pdfFilters });
+  const sitesConnection = useCourseSites({ index, isOpen: props.isOpen, verifiedGeneration });
 
   const [associations, setAssociations] = useState({ key: '', pairs: {} });
   const associationKey = `courseAssociations:${JSON.stringify([index.accountId, piazza.index.accountId])}`;
@@ -169,7 +171,7 @@ export function LearnSpotlight(props) {
   );
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';
   const combined = React.useMemo(() => associateCourses(index.courses, piazza.index.courses,
-    [...index.resources.map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey]);
+    [...index.resources.map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...(index.siteResources || []), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
 
   return <Spotlight {...props} resources={combined.resources} courses={combined.courses} history={history}
@@ -178,7 +180,7 @@ export function LearnSpotlight(props) {
       catch (error) { setMessage(error.message); }
     } : null}
     semanticEnabled={semanticEnabled}
-    demo={false} connection={<>{connection}{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
+    demo={false} connection={<>{connection}{sitesConnection}{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:
       <select aria-label={`Confirm course association for ${choice.piazza.name}`} value="" onChange={(event) => {
         const pairs = { ...(associations.key === associationKey ? associations.pairs : {}), [choice.piazza.id]: event.target.value };
@@ -186,6 +188,6 @@ export function LearnSpotlight(props) {
         chrome.storage.local.set({ [associationKey]: pairs }).catch(() => setMessage('Course association could not be saved.'));
       }}><option value="">{choice.conflictingTerm ? 'Different terms — confirm association' : 'Multiple matches — choose a course'}</option>{choice.learn.map((course) => <option key={course.id} value={course.id}>{course.name} ({course.code || course.id})</option>)}</select>
     </label>)}</>} onResourceOpen={recordOpen}
-    footer={`v${version} · LEARN + Piazza${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
+    footer={`v${version} · LEARN + Piazza + Websites${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
 
 }

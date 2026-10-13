@@ -29,7 +29,8 @@ function prepare(resource) {
   if (/\b(?:annotated|lecture|lectures|lec|slides)\b/.test(context)) studyAliases.push('lecture notes');
   if (/\bslides\b/.test(context) || resource.type === 'SLIDES') studyAliases.push('lecture slides notes');
   const values = [resource.title, resource.service, `${resource.course || ''} ${courseText(resource)}`, [...(resource.aliases || []), ...studyAliases].join(' '), resource.path, resource.type, resource.destinationHost, resource.source, inferred.aliases.join(' ')];
-  const fields = values.map((value, i) => ({ text: normalizeQuery(value), words: tokens(value), weight: [12, 11, 10, 9, 6, 5, 4, 4, 3][i] }));
+  if (resource.source === 'Website' && resource.contentText) values.push(resource.contentText);
+  const fields = values.map((value, i) => ({ text: normalizeQuery(value), words: tokens(value), weight: [12, 11, 10, 9, 6, 5, 4, 4, 3, 2][i] }));
   const titleAssignments = assignmentIds(resource.title);
   const data = { fields, courseWords: tokens(courseText(resource)), assignments: titleAssignments.length ? titleAssignments : assignmentIds(resource.path) };
   prepared.set(resource, data);
@@ -175,8 +176,12 @@ export function rankResource(resource, query) {
   if (!query.words.length && !query.dateOrder) return null;
   const course = courseRelevance(resource, query);
   score += 12 * course;
-  const exactTitle = Boolean(query.text) && data.fields[0].text === query.text;
+  const websiteTitleQuery = resource.source === 'Website' ? query.words.filter(word => !/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word) && !query.preferences?.includes(word)).join(' ') : '';
+  const websiteTitle = data.fields[0].words.filter(word => !query.preferences?.includes(word)).join(' ');
+  const exactTitle = Boolean(query.text) && data.fields[0].text === query.text
+    || Boolean(websiteTitleQuery) && websiteTitle === websiteTitleQuery;
   if (exactTitle) score += 30;
+  if (resource.websiteSection && exactTitle) score += 2;
   else if (query.text && data.fields[0].text.startsWith(query.text)) score += 12;
   const exactIdentifier = exactIdentifierMatch(resource, query);
   return { score, fuzzy, reasons: [...reasons], relevance: topicMaximum ? topicScore / topicMaximum : 0,

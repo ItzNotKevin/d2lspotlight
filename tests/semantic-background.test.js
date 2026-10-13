@@ -8,11 +8,16 @@ let listener;
 let saved;
 let sent;
 let respond;
+let readyRequests;
+let readiness;
 globalThis.chrome = {
   runtime: {
     id: 'test-extension', getURL: (path) => `chrome-extension://test-extension/${path}`,
     getContexts: async () => [{}], onMessage: { addListener: (handler) => { listener = handler; } },
-    sendMessage: async (message) => { sent.push(message); return respond(message); }
+    sendMessage: async (message) => {
+      if (message.target === 'spotlight-offscreen') { readyRequests++; return readiness(); }
+      sent.push(message); return respond(message);
+    }
   },
   storage: { local: { get: async () => structuredClone(saved) } }
 };
@@ -24,6 +29,8 @@ function reset() {
     { id: 'notes', title: 'Enumeration notes', course: 'MATH 239', courseId: '239', type: 'PDF', path: '' }
   ] }, [PIAZZA_CACHE_KEY]: emptyIndex() };
   sent = [];
+  readyRequests = 0;
+  readiness = () => ({ ok: true });
   respond = () => ({ ok: true, matches: [{ id: 'notes', score: 0.8 }], indexed: 1, total: 1 });
 }
 
@@ -39,8 +46,20 @@ test('semantic worker receives only saved resources with verified source account
   const result = await search({ resources: [{ id: 'injected', title: 'Untrusted' }] });
   assert.equal(result.ok, true);
   assert.equal(sent.length, 1);
+  assert.equal(readyRequests, 1);
   assert.deepEqual(sent[0].resources.map((resource) => [resource.id, resource.source, resource.accountId]), [['notes', 'LEARN', 'account-one']]);
   assert.deepEqual(sent[0].allowedIds, ['notes']);
+});
+
+test('an existing offscreen document finishes loading its listeners before the first search is sent', async () => {
+  reset();
+  readiness = () => {
+    if (readyRequests === 1) throw new Error('Receiving end does not exist');
+    return { ok: true };
+  };
+  assert.equal((await search()).ok, true);
+  assert.equal(readyRequests, 2);
+  assert.equal(sent.length, 1);
 });
 
 test('unknown senders, extension pages, and subframes cannot request cached semantic data', () => {
