@@ -216,8 +216,9 @@ try {
   await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('CS 246 · Course website detected'), 'Course home link must be automatically discovered');
   const detected = await evaluate(background, "chrome.storage.local.get('learnSpotlightIndexV1')");
   assert.equal(detected.learnSpotlightIndexV1.courseSites.length, 1, 'Previous-term site must not be detected');
+  await until(() => evaluate(page, `${root}?.querySelector('[aria-label="Course website access"]')?.textContent`), text => text?.includes('Include CS 246') && text.includes('student.cs.uwaterloo.ca'), 'Detected site must automatically offer access with its address');
   const includeButton = await evaluate(page, `(() => {
-    const button = Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Include website');
+    const button = Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Allow and index');
     const bounds = button.getBoundingClientRect();
     return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, disabled: button.disabled };
   })()`);
