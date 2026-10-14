@@ -70,4 +70,4 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   }
 });
 
-chrome.action.onClicked.addListener(toggleSpotlight);
+chrome.action.onClicked.addListener(tab => toggleSpotlight(tab, chrome, 'toolbar'));

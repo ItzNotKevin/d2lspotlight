@@ -1,4 +1,5 @@
 import { prepareQuery, matchesQueryConstraints, normalizeQuery } from '../rank.js';
+import { studyWeight } from '../relevance.js';
 
 export const MAX_PDF_BYTES = 12 * 1024 * 1024;
 export const MAX_PAGES = 400;
@@ -9,9 +10,17 @@ export const MAX_DOCUMENTS = 100;
 export const pdfRevision = resource => JSON.stringify([resource.pdfUrl, resource.modifiedAt]);
 export const notesSection = resource => JSON.stringify([resource.courseId, resource.path || '']);
 
-export function mergePdfResults(metadata, pages, limit = 100) {
+export function mergePdfResults(metadata, pages, limit = 100, query = '') {
   const matched = new Set(pages.map(page => page.resourceId));
-  return [...pages, ...metadata.filter(resource => !matched.has(resource.id))].slice(0, limit);
+  const combined = [...pages, ...metadata.filter(resource => !matched.has(resource.id))];
+  if (query.trim()) {
+    // Do not let an incidental biography passage automatically precede every
+    // teaching result merely because it came from the PDF text pipeline.
+    const hasTeaching = combined.some(resource => studyWeight(resource, query) > 1);
+    const incidental = resource => studyWeight(resource, query) < 1 && normalizeQuery(resource.title) !== normalizeQuery(query);
+    if (hasTeaching) combined.sort((a, b) => Number(incidental(a)) - Number(incidental(b)));
+  }
+  return combined.slice(0, limit);
 }
 
 export function pdfPageUrl(resource, page) {

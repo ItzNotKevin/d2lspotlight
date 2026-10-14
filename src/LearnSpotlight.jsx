@@ -46,8 +46,9 @@ export function LearnSpotlight(props) {
 
   useEffect(() => {
     let active = true;
-    chrome.storage.local.get(['semanticSearchEnabled', 'localSemanticSearchEnabled']).then((saved) => {
+    chrome.storage.local.get(['semanticSearchEnabled', 'localSemanticSearchEnabled', 'spotlightLaunchStatus']).then((saved) => {
       if (active) setSemanticEnabled(Boolean(saved.semanticSearchEnabled ?? saved.localSemanticSearchEnabled));
+      if (active && saved.spotlightLaunchStatus?.ok === false) setDiagnostics(current => [...current, { stage: 'last overlay launch', ...saved.spotlightLaunchStatus }]);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
@@ -240,6 +241,11 @@ export function LearnSpotlight(props) {
   );
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';
   const learnSearchReady = Boolean(props.isOpen && index.accountId && verifiedGeneration === index.generation);
+  const coveragePdfs = learnSearchReady && (!pdfFilters.source || pdfFilters.source === 'LEARN') ? index.resources.filter(resource => resource.type === 'PDF' && accessibleCourses.includes(resource.courseId)
+    && (!pdfFilters.courseId || resource.courseId === pdfFilters.courseId)
+    && (!pdfFilters.notesSection || notesSection(resource) === pdfFilters.notesSection)
+    && (!pdfFilters.instructor || index.pdfLabels?.[notesSection(resource)] === pdfFilters.instructor)) : [];
+  const covered = coveragePdfs.filter(resource => pdf.status?.documents.some(document => document.id === resource.id));
   const combined = React.useMemo(() => associateCourses(learnSearchReady ? index.courses.filter(course => accessibleCourses.includes(course.id)) : [], piazza.index.courses,
     [...(learnSearchReady ? index.resources.filter(resource => accessibleCourses.includes(resource.courseId)) : []).map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...(learnSearchReady ? (index.siteResources || []).filter(resource => accessibleCourses.includes(resource.courseId)) : []), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey, learnSearchReady, accessibleCourses]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
@@ -258,6 +264,9 @@ export function LearnSpotlight(props) {
         </div>}
       </div>
       {sites.prompt}{sites.status}
+      {pdf.status && coveragePdfs.length > covered.length && <p className="ls-coverage" role="status">PDF contents searched: {covered.length} of {coveragePdfs.length} in this scope. Some contents aren’t indexed yet; document titles remain searchable.</p>}
+      {covered.some(resource => pdf.status?.documents.some(document => document.id === resource.id && (document.partial || document.emptyPages))) && <p className="ls-coverage" role="status">Some indexed PDFs have unreadable or omitted pages, so their content search is incomplete.</p>}
+      {learnSearchReady && (index.courseSites || []).some(site => site.enabled && site.partial && (!pdfFilters.courseId || site.courseId === pdfFilters.courseId)) && (!pdfFilters.source || pdfFilters.source === 'Website') && <p className="ls-coverage" role="status">Course website coverage is partial; some pages may be missing from search.</p>}
       <details className="ls-settings" aria-label="Search settings"><summary>Settings</summary>
       <div className="ls-settings-body">{connection}<h3>Course websites</h3>{sites.settings}<h3>Piazza</h3>{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:

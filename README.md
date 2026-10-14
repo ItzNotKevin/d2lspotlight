@@ -1,5 +1,9 @@
 # Learn Spotlight
 
+**v0.5.5 fixes background-worker startup:** the worker and its catalog data are bundled into `dist/background.js`, avoiding raw JSON module loading in Chrome. A shortcut controller is installed on LEARN pages before first use, and toolbar launches reuse that controller. Reload the extension and refresh existing LEARN tabs to activate it.
+
+**v0.5.4 improves search relevance and coverage feedback:** comparable topic matches modestly favor teaching material, results explain why they matched, and incomplete PDF/site coverage remains visible. Unindexed Waterloo CS host-alias candidates are deduplicated while indexed entries are retained.
+
 **v0.5.3 adds course-specific PDF indexing:** choose courses under Settings → LEARN and PDFs, inspect indexed/pending/failed counts, retry failed files individually, or prioritize a course by clearing other courses’ cached text. Course selections persist per account.
 
 **v0.5.2 simplifies the search window:** maintenance and source controls are under Settings, while login status and website-access prompts remain visible. Website results show their destination domain and a preview around the matching text.
