@@ -24,6 +24,8 @@ Spotlight can discover course websites linked from a signed-in LEARN course home
 
 ## Validation
 
+Website refresh/removal and manual URL controls are under **Settings → Course websites**. Automatic access prompts, indexing progress, and cancellation remain visible above the search filters. Website results show the destination domain and a preview around matching text; Linked reference results describe links discovered on the course website rather than indexed destination contents.
+
 Website indexing shows the current page number and offers cancellation. After the first opening on a page, a tab-local Command/Ctrl–Shift–K listener can reopen a fully closed overlay without requiring a background command. Chrome still handles the first opening; keyboard input must be focused on the webpage.
 
 When Spotlight detects an unindexed website for the current course, it automatically presents an access prompt showing the address. **Allow and index** opens Chrome's permission request from the button click and starts indexing. **Not now** (or Escape while focused on the prompt) defers the prompt for that tab session; the existing Include website button remains available. The supported host aliases share the same consent choice. Chrome requires a user gesture, so native permission prompts cannot be triggered silently on detection.

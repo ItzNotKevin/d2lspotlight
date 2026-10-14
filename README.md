@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.5.2 simplifies the search window:** maintenance and source controls are under Settings, while login status and website-access prompts remain visible. Website results show their destination domain and a preview around the matching text.
+
 **v0.5.1 verifies your LEARN login before searching saved results on any tab.** Reload the extension and webpage to enable the session gate.
 
 **v0.5.0 adds course website search:** open a LEARN course home to detect matching Waterloo CS course/term links, then click **Include website** to index public HTML pages and search their sections. Course/source filters, section links and official-outline references are supported. See [COURSE_WEBSITE_SEARCH.md](COURSE_WEBSITE_SEARCH.md) for setup, permissions and limits.
