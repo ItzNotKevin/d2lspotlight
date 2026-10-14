@@ -1,3 +1,4 @@
+import { deduplicateSiteCandidates } from '../sites/core.js';
 export const CACHE_KEY = 'learnSpotlightIndexV1';
 export const emptyIndex = () => ({ version: 1, accountId: null, courses: [], resources: [], siteResources: [], courseSites: [], history: {}, pdfLabels: {}, updatedAt: null, failedCourses: [], generation: null });
 
@@ -31,11 +32,12 @@ export function createIndexStore(storage, key = CACHE_KEY) {
     } else if (['discover-sites', 'begin-site', 'commit-site', 'remove-site'].includes(action)) {
       if (payload.accountId !== current.accountId || payload.generation !== current.generation) throw new Error('LEARN data changed. Reopen Spotlight.');
       if (action === 'discover-sites') {
-        const sites = new Map((current.courseSites || []).map(site => [`${site.courseId}:${site.root}`, site]));
+        const sites = new Map(deduplicateSiteCandidates(current.courseSites || []).map(site => [`${site.courseId}:${site.root}`, site]));
         for (const site of payload.sites) {
           const key = `${site.courseId}:${site.root}`;
           if (!current.courses.some(course => course.id === site.courseId)) throw new Error('Course is no longer accessible.');
-          if (!sites.has(key)) {
+          const aliasExists = [...sites.values()].some(existing => existing.courseId === site.courseId && new URL(existing.root).pathname === new URL(site.root).pathname);
+          if (!sites.has(key) && !aliasExists) {
             if (sites.size >= 10) throw new Error('Ten course websites are already saved. Remove one before adding another.');
             sites.set(key, { ...site, enabled: false });
           }

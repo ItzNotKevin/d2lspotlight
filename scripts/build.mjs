@@ -9,6 +9,13 @@ import { readOutlineBundle } from './outline-runtime.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 await build({ root });
+await build({ root, configFile: false, build: { outDir: 'dist', emptyOutDir: false, target: 'es2022',
+  lib: { entry: resolve(root, 'background.js'), formats: ['es'], fileName: () => 'background.js' } } });
+const backgroundBundle = await readFile(resolve(root, 'dist/background.js'), 'utf8');
+if (/\bfrom\s*['"][^'"]+\.json['"]/.test(backgroundBundle)) throw new Error('Background worker must bundle JSON dependencies for reliable Chrome startup.');
+await build({ root, configFile: false, define: { 'process.env.NODE_ENV': JSON.stringify('production') }, build: { outDir: 'dist', emptyOutDir: false, target: 'es2022',
+  lib: { entry: resolve(root, 'src/shortcut.jsx'), name: 'LearnSpotlightShortcut', formats: ['iife'], fileName: () => 'shortcut.js' },
+  rollupOptions: { onwarn(warning, handler) { if (warning.code !== 'MODULE_LEVEL_DIRECTIVE') handler(warning); } } } });
 await build({ root, configFile: false,
   resolve: { conditions: ['onnxruntime-web-use-extern-wasm', 'module', 'browser', 'production'] },
   build: {

@@ -5,6 +5,11 @@ export const MAX_SITE_PAGES = 12;
 export const MAX_HTML_BYTES = 256 * 1024;
 export const MAX_SITE_RESOURCES = 150;
 export const siteKey = site => `${site.courseId}:${site.root}`;
+export function deduplicateSiteCandidates(sites) {
+  const key = site => `${site.courseId}:${new URL(site.root).pathname}`;
+  // Keep indexed entries (and their records); discard redundant unindexed aliases.
+  return sites.filter((site, i) => site.enabled || !sites.some((other, j) => key(other) === key(site) && (other.enabled || j < i)));
+}
 
 export function courseTerm(course) {
   const text = `${course.code || ''} ${course.name || ''}`.replace(/[_-]/g, ' ');
@@ -40,7 +45,8 @@ export function detectCourseSites(links, course) {
     try {
       const site = validateCourseSite(link.url, course);
       if (!sitePageUrl(site.url, site)) continue;
-      if (!sites.has(site.root)) sites.set(site.root, { ...site,
+      const canonicalRoot = new URL(site.root).pathname;
+      if (!sites.has(canonicalRoot)) sites.set(canonicalRoot, { ...site,
         reason: /(?:does\s+not|do\s+not|not\s+use).*learn|course\s+(?:webpage|website|web\s*site)/i.test(link.context || '') ? 'Linked from a course website notice' : 'Course and term match the LEARN course' });
     } catch { /* Ignore unrelated links and previous-term sites. */ }
   }

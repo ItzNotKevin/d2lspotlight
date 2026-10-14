@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { deduplicateSiteCandidates } from './core.js';
 
 export function useCourseSites({ index, isOpen, verifiedGeneration }) {
   const [message, setMessage] = useState('');
@@ -107,7 +108,7 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
     }}>Cancel website indexing</button>}
   </div>;
   const settings = <div className="ls-connection">
-    {(index.courseSites || []).map(site => <div className="ls-connection-actions" key={`${site.courseId}:${site.root}`}>
+    {deduplicateSiteCandidates(index.courseSites || []).map(site => <div className="ls-connection-actions" key={`${site.courseId}:${site.root}`}>
       <span>{site.code} · Course website{site.enabled ? ` · ${site.pageCount || 0} pages${site.partial ? ' · partial' : ''}` : ' detected'}</span>
       <a className="ls-chip" href={site.url} target="_blank" rel="noreferrer">Open website</a>
       {onLearn && <button className="ls-chip" disabled={busy || !verified} onClick={() => run('include', site)}>{site.enabled ? 'Allow / refresh website' : 'Include website'}</button>}

@@ -11,6 +11,7 @@ import { usePdfSearch } from './search/pdf/usePdfSearch.jsx';
 import { mergePdfResults } from './search/pdf/core.js';
 import { filterResources } from './learn/search.js';
 import { matchingSnippet } from './search/snippet.js';
+import { matchExplanation } from './search/relevance.js';
 
 const EMPTY_HISTORY = {};
 
@@ -148,6 +149,7 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
         </span>
         {resource.source === 'Website' && destination && <span className="ls-row-origin">{resource.websiteReference ? 'Reference destination' : 'Course website'} · {destination}</span>}
         {snippet && <span className="ls-row-snippet"><HighlightText text={snippet} query={query} /></span>}
+        {query.trim() && <span className="ls-match-reason">{fuzzy ? 'Similar spelling' : matchExplanation(resource, query)}</span>}
       </span>
       <span className="ls-course"><HighlightText text={resource.course} query={query} /></span>
       <ChevronRight className="ls-chevron" size={16} strokeWidth={1.7} aria-hidden="true" />
@@ -230,7 +232,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
 
   const searchResults = useMemo(() => {
     if (remoteResults !== null) return remoteResults;
-    if (!demo) return mergePdfResults(hybridSearch(resources, { query: searchValue, ...filters, history }, semantic.matches), pdf.matches);
+    if (!demo) return mergePdfResults(hybridSearch(resources, { query: searchValue, ...filters, history }, semantic.matches), pdf.matches, 100, searchValue);
     if (!hasQuery) return [];
     return resources.filter((resource) =>
       matches(resource, searchValue) &&

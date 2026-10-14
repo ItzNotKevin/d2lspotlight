@@ -3,6 +3,7 @@ import { filterResources } from '../../learn/search.js';
 import { ensureDocument } from '../semantic/background.js';
 import { openPdfCache } from './cache.js';
 import { MAX_CACHE_CHARS, MAX_DOCUMENTS, pdfRevision, notesSection, searchPdfPages, pdfPageUrl } from './core.js';
+import { studyWeight } from '../relevance.js';
 
 let queue = Promise.resolve();
 const active = new Map();
@@ -52,7 +53,7 @@ export async function searchPdfCache(cache, index, query, filters = {}) {
         pdfPage: evidence.page, snippet: evidence.snippet, pdfScore: evidence.score, pdfPartial: document.partial });
     }
   }
-  return matches.sort((a, b) => b.pdfScore - a.pdfScore || a.pdfPage - b.pdfPage).slice(0, 50);
+  return matches.sort((a, b) => b.pdfScore * studyWeight(b, query) - a.pdfScore * studyWeight(a, query) || a.pdfPage - b.pdfPage).slice(0, 50);
 }
 
 export function registerPdfSearch() {

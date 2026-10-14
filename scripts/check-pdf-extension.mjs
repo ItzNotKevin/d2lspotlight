@@ -12,7 +12,7 @@ const extension = join(temporary, 'extension');
 for (const path of ['src', 'dist', 'background.js', 'semantic.html']) await cp(resolve(path), join(extension, path), { recursive: true });
 // Expose the statically imported handler only in the disposable fixture: dynamic
 // import is disallowed in service workers, and production has no debug globals.
-await writeFile(join(extension, 'background.js'), `${await readFile('background.js', 'utf8')}\nglobalThis.__spotlightToggleForTest = toggleSpotlight;\n`);
+await writeFile(join(extension, 'dist/background.js'), `${await readFile('dist/background.js', 'utf8')}\nimport { toggleSpotlight as fixtureToggle } from '../src/toggle.js';\nglobalThis.__spotlightToggleForTest = fixtureToggle;\n`);
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
 await writeFile(join(extension, 'manifest.json'), JSON.stringify({ ...manifest, host_permissions: ['https://learn.uwaterloo.ca/*', 'https://student.cs.uwaterloo.ca/*', 'https://example.test/*'] }));
 const browser = spawn(process.env.SPOTLIGHT_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -118,12 +118,17 @@ try {
   const { sessionId: background } = await call('Target.attachToTarget', { targetId: target.targetId, flatten: true });
   await call('Runtime.enable', {}, background);
   await until(() => evaluate(background, "typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id)"), Boolean, 'Extension worker context must initialize');
+  assert.equal(await evaluate(page, "Boolean(document.getElementById('learn-spotlight-root'))"), false, 'Automatic shortcut installation must not open the overlay');
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
+  await until(() => evaluate(page, "Boolean(document.getElementById('learn-spotlight-root')?.shadowRoot?.querySelector('[role=dialog]'))"), Boolean, 'Installed LEARN shortcut must open before any worker injection');
   await evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['dist/spotlight.js'] });
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => { window.open = url => { window.__pdfTestOpened = url; }; } });
   })()`);
   const root = "document.getElementById('learn-spotlight-root')?.shadowRoot";
+  assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true, 'A duplicate command must not close a locally opened overlay');
   await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 PDFs'), 'Automatic PDF indexing must finish');
   assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), false, 'Maintenance settings must start collapsed');
   async function closeAndReopen() {
@@ -156,6 +161,7 @@ try {
   await change('input[type=search]', 'permutation');
   const matched = await until(rows, text => text?.includes('PDF page 2') && text.includes('STAT_231'), 'PDF contents must match across courses');
   assert.match(matched, /ordered arrangement/);
+  assert.equal(await evaluate(page, `${root}.querySelector('.ls-match-reason')?.textContent`), 'PDF text · page 2', 'Result must explain its PDF passage match');
   await new Promise(resolveWait => setTimeout(resolveWait, 500));
   const preview = await call('Page.captureScreenshot', { format: 'png' }, page);
   await writeFile(join(tmpdir(), 'spotlight-search-preview.png'), Buffer.from(preview.data, 'base64'));
@@ -207,6 +213,16 @@ try {
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
   await until(() => evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), Boolean, 'Tab-local Command Shift K must reopen a fully disposed overlay');
+  assert.equal(await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+    return globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
+  })()`), true, 'Toolbar must invoke the installed controller independently of a local shortcut');
+  await until(() => evaluate(page, "!document.getElementById('learn-spotlight-root')"), Boolean, 'Toolbar must fully close the locally opened overlay');
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+    return globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
+  })()`);
+  await until(() => evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), Boolean, 'Toolbar must reopen through the installed controller');
   await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
   await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 indexed') && text.includes('STAT 230'), 'Course indexing counts must be displayed');
   const settingsWheel = await evaluate(page, `(() => {
@@ -225,6 +241,9 @@ try {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
     return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => chrome.runtime.sendMessage({ type: 'pdf-index', action: 'status' }) }))[0].result;
   })()`), result => result.documents.length === 1 && result.documents[0].id.includes(':230:'), 'Prioritization must retain chosen-course PDF text and remove other-course text');
+  await change('[aria-label="Filter by course"]', '231');
+  await until(() => evaluate(page, `${root}.querySelector('.ls-coverage')?.textContent`), text => text?.includes('0 of 1'), 'A course whose PDF text was removed must show incomplete coverage');
+  await change('[aria-label="Filter by course"]', '230');
   failSecondPdf = true;
   await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 231 Fall 2026"]').click()`);
   await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 230 Fall 2026"]').click()`);
@@ -280,6 +299,7 @@ try {
   })()`), `${externalRoot}assignments.shtml#lates`);
   await change('input[type=search]', 'cs246 official outline');
   await until(rows, text => text?.includes('Linked reference'), 'Official outline reference must be searchable');
+  assert.ok(await evaluate(page, `${root}.querySelector('[role=listbox]').textContent.includes('destination contents not searched')`), 'References must explain that destination contents were not searched');
   assert.ok(!requested.some(url => url.startsWith('https://outline.uwaterloo.ca/')), 'Reference must open as a link rather than crawling another site');
   await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
   assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), true, 'Settings must open on demand');
@@ -316,7 +336,7 @@ try {
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
-    interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', clearLearnData: 'passed',
+    interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
     courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();

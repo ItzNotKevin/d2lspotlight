@@ -1,4 +1,5 @@
 import { compareDateIntent, prepareSearchQuery, rankResource } from '../search/rank.js';
+import { studyWeight } from '../search/relevance.js';
 
 export function filterResources(resources, { courseId = '', source = '', documents = false, recent = false, history = {}, notesSection = '', instructor = '' } = {}) {
   return resources.filter((resource) => {
@@ -25,5 +26,5 @@ export function rankResources(resources, { query = '', ...filters } = {}) {
   return filterResources(resources, filters).map((resource, order) => ({ resource, order, rank: rankResource(resource, parsed) }))
     .filter((item) => item.rank)
     .sort((a, b) => compareDateIntent({ ...a, courseRelevance: a.rank.courseRelevance }, { ...b, courseRelevance: b.rank.courseRelevance }, parsed)
-      || Number(b.rank.exactTitle) - Number(a.rank.exactTitle) || Number(b.rank.exactIdentifier) - Number(a.rank.exactIdentifier) || b.rank.score - a.rank.score || a.order - b.order);
+      || Number(b.rank.exactTitle) - Number(a.rank.exactTitle) || Number(b.rank.exactIdentifier) - Number(a.rank.exactIdentifier) || b.rank.score * studyWeight(b.resource, query) - a.rank.score * studyWeight(a.resource, query) || a.order - b.order);
 }
