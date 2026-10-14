@@ -17,6 +17,32 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
   const [revision, setRevision] = useState(0);
   const [retry, setRetry] = useState(0);
   const controller = useRef(null);
+  const [selectedCourses, setSelectedCourses] = useState(null);
+  const [preferencesReady, setPreferencesReady] = useState(null);
+  const [failures, setFailures] = useState({});
+  const [currentResource, setCurrentResource] = useState(null);
+  const retryTarget = useRef(null);
+  const preferenceKey = `pdfIndexCourses:${index.accountId}`;
+  useEffect(() => {
+    let active = true;
+    setPreferencesReady(null);
+    setFailures({});
+    chrome.storage.local.get(preferenceKey).then(saved => {
+      if (active) { setSelectedCourses(saved[preferenceKey] ?? null); setPreferencesReady(preferenceKey); }
+    }).catch(() => { if (active) { setSelectedCourses(null); setPreferencesReady(preferenceKey); } });
+    const unsubscribe = subscribeStorageChanges((changes, area) => {
+      if (active && area === 'local' && changes[preferenceKey]) {
+        controller.current?.abort();
+        setSelectedCourses(changes[preferenceKey].newValue ?? null);
+      }
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [preferenceKey]);
+  function selectCourses(ids) {
+    controller.current?.abort();
+    setSelectedCourses(ids);
+    chrome.storage.local.set({ [preferenceKey]: ids }).catch(error => setMessage(error.message));
+  }
   useEffect(() => {
     let active = true;
     chrome.storage.local.get('pdfContentSearchEnabled').then(saved => {
@@ -39,7 +65,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
 
   const scope = JSON.stringify(filters);
   useEffect(() => {
-    if (!ready || !enabled || !isOpen || !index.accountId || !index.generation || verifiedGeneration !== index.generation) return;
+    if (!ready || preferencesReady !== preferenceKey || !enabled || !isOpen || !index.accountId || !index.generation || verifiedGeneration !== index.generation) return;
     const abort = new AbortController();
     controller.current = abort;
     let requestId = null;
@@ -47,17 +73,21 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       const existing = await pdfMessage('status');
       abort.signal.throwIfAborted();
       const cached = new Map(existing.documents.map(document => [document.id, document.revision]));
+      const target = retryTarget.current;
+      retryTarget.current = null;
       const candidates = index.resources.filter(resource => resource.type === 'PDF' && resource.pdfUrl
-        && (!filters.courseId || resource.courseId === filters.courseId)
-        && (!filters.source || filters.source === 'LEARN')
-        && (!filters.notesSection || notesSection(resource) === filters.notesSection)
-        && (!filters.instructor || index.pdfLabels?.[notesSection(resource)] === filters.instructor));
-      const pending = candidates.filter(resource => cached.get(resource.id) !== pdfRevision(resource));
+        && (target || selectedCourses === null || selectedCourses.includes(resource.courseId))
+        && (target || selectedCourses !== null || !filters.courseId || resource.courseId === filters.courseId)
+        && (target || selectedCourses !== null || !filters.source || filters.source === 'LEARN')
+        && (target || selectedCourses !== null || !filters.notesSection || notesSection(resource) === filters.notesSection)
+        && (target || selectedCourses !== null || !filters.instructor || index.pdfLabels?.[notesSection(resource)] === filters.instructor));
+      const pending = candidates.filter(resource => cached.get(resource.id) !== pdfRevision(resource) && (!target || resource.id === target));
       let done = 0;
       let failed = 0;
       let warning = '';
       for (const resource of pending.slice(0, MAX_DOCUMENTS)) {
         abort.signal.throwIfAborted();
+        setCurrentResource(resource.id);
         setMessage(`Reading PDF ${done + failed + 1} of ${Math.min(pending.length, MAX_DOCUMENTS)}: ${resource.title}`);
         requestId = crypto.randomUUID();
         try {
@@ -67,12 +97,16 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
             generation: index.generation, bytes: encodePdf(bytes) });
           abort.signal.throwIfAborted();
           done++;
+          setFailures(previous => { const next = { ...previous }; delete next[resource.id]; return next; });
           if (result.document.partial || result.document.emptyPages) warning = 'Some PDFs have truncated or unreadable pages; scans and handwriting need OCR.';
           setRevision(value => value + 1);
         } catch (error) {
           abort.signal.throwIfAborted();
-          failed++;
           warning = error.message;
+          if (!error.stop && !/cache is full|data changed|another tab/.test(error.message)) {
+            failed++;
+            setFailures(previous => ({ ...previous, [resource.id]: error.message }));
+          }
           if (error.code === 'SESSION') await indexMessage('clear');
           if (error.stop || /cache is full|data changed|another tab/.test(error.message)) break;
         } finally { requestId = null; }
@@ -84,14 +118,14 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       const indexed = final.documents.filter(document => candidates.some(resource => resource.id === document.id)).length;
       const partial = final.documents.some(document => document.partial || document.emptyPages);
       setMessage(`${indexed} of ${candidates.length} PDFs in this scope indexed.${failed ? ` ${failed} could not be read.` : ''} ${warning || (partial ? 'Some pages have no readable text or exceed extraction limits.' : '')}`.trim());
-    })().catch(error => { if (!abort.signal.aborted) setMessage(error.message); });
+    })().catch(error => { if (!abort.signal.aborted) setMessage(error.message); }).finally(() => { if (controller.current === abort) setCurrentResource(null); });
     return () => {
       abort.abort();
       if (requestId) {
         try { pdfMessage('cancel', { requestId }).catch(() => {}); } catch {}
       }
     };
-  }, [ready, enabled, isOpen, index, verifiedGeneration, scope, retry]);
+  }, [ready, enabled, isOpen, index, verifiedGeneration, scope, retry, selectedCourses, preferencesReady, preferenceKey]);
 
   function toggle() {
     const next = !enabled;
@@ -109,5 +143,15 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       setMessage('PDF text cleared. Select a course or notes section, then enable PDF indexing to rebuild.');
     } catch (error) { setMessage(error.message); }
   }
-  return { enabled, toggle, clear, retry: () => setRetry(value => value + 1), message, status, revision };
+  async function prioritize(courseId) {
+    controller.current?.abort();
+    try {
+      await pdfMessage('prioritize-course', { courseId, accountId: index.accountId, generation: index.generation });
+      selectCourses([courseId]);
+      setRetry(value => value + 1);
+      setMessage('Other courses’ cached PDF text removed. Indexing the selected course.');
+    } catch (error) { setMessage(error.message); }
+  }
+  return { enabled, toggle, clear, retry: id => { retryTarget.current = typeof id === 'string' ? id : null; setRetry(value => value + 1); }, message, status, revision,
+    selectedCourses, selectCourses, failures, currentResource, prioritize };
 }

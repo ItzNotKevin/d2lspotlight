@@ -70,6 +70,16 @@ export function registerPdfSearch() {
         const after = await indexSnapshot();
         return before.generation === after.generation && before.accountId === after.accountId ? { ok: true, matches } : { ok: true, matches: [] };
       });
+      if (message.action === 'prioritize-course' && onLearn) return withCache(async cache => {
+        const index = await indexSnapshot();
+        if (index.accountId !== message.accountId || index.generation !== message.generation || !index.courses.some(course => course.id === message.courseId)) throw new Error('LEARN data changed. Reopen Spotlight.');
+        for (const id of active.keys()) cancel(id);
+        await chrome.storage.local.set({ [`pdfIndexCourses:${index.accountId}`]: [message.courseId] });
+        const keep = new Set(index.resources.filter(resource => resource.courseId === message.courseId).map(resource => resource.id));
+        await cache.remove((await cache.all()).filter(document => !keep.has(document.id)).map(document => document.id));
+        await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
+        return pdfStatus(cache, index);
+      });
       if (message.action !== 'extract' || !onLearn) throw new Error('Index PDFs from a signed-in LEARN tab.');
       const before = await indexSnapshot();
       const resource = before.resources.find(resource => resource.id === message.resourceId && resource.type === 'PDF' && resource.pdfUrl);
@@ -87,7 +97,7 @@ export function registerPdfSearch() {
             || !after.resources.some(item => item.id === resource.id && pdfRevision(item) === pdfRevision(resource))) throw new Error('LEARN data changed. Reopen Spotlight.');
           const all = (await cache.all()).filter(document => currentDocument(document, after) && document.id !== resource.id);
           await cache.remove((await cache.all()).filter(document => !currentDocument(document, after)).map(document => document.id));
-          if (all.length >= MAX_DOCUMENTS || all.reduce((sum, document) => sum + document.chars, 0) + response.document.chars > MAX_CACHE_CHARS) throw new Error('PDF text cache is full. Clear PDF text to choose a different course or notes section.');
+          if (all.length >= MAX_DOCUMENTS || all.reduce((sum, document) => sum + document.chars, 0) + response.document.chars > MAX_CACHE_CHARS) throw new Error('PDF text cache is full. Prioritize a course in Settings or clear PDF text.');
           await cache.put({ ...response.document, id: resource.id, accountId: before.accountId, revision: pdfRevision(resource) });
           await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
           return { ok: true, document: { ...response.document, pages: response.document.pages.length } };

@@ -268,8 +268,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     if (!backdrop) return;
     function blockPageScroll(event) {
       const path = event.composedPath();
-      const containers = [listRef.current, backdrop.querySelector('.ls-panel')];
-      const scrollable = containers.some((node) => node && path.includes(node)
+      const scrollable = path.some(node => node instanceof HTMLElement && backdrop.contains(node)
         && node.scrollHeight > node.clientHeight && ['auto', 'scroll'].includes(getComputedStyle(node).overflowY));
       if (!scrollable) event.preventDefault();
     }

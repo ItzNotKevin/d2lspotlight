@@ -200,6 +200,27 @@ export function LearnSpotlight(props) {
   const connection = (
     <div className="ls-connection">
       <h3>LEARN and PDFs</h3>
+      {onLearn && index.courses.length > 0 && <fieldset className="ls-pdf-courses">
+        <legend>Courses to index</legend>
+        <p>Select courses to index independently of search filters. Saved PDF text stays searchable when a course is unchecked.</p>
+        <button className="ls-chip" onClick={() => pdf.selectCourses(null)}>All courses / follow search filters</button>
+        {index.courses.map(course => {
+          const documents = index.resources.filter(resource => resource.type === 'PDF' && resource.pdfUrl && resource.courseId === course.id);
+          if (!documents.length) return null;
+          const indexed = documents.filter(resource => pdf.status?.documents.some(document => document.id === resource.id)).length;
+          const failed = documents.filter(resource => pdf.failures[resource.id]);
+          return <div className="ls-pdf-course" key={course.id}>
+            <label><input type="checkbox" aria-label={`Index PDFs for ${course.name}`} checked={pdf.selectedCourses === null || pdf.selectedCourses.includes(course.id)} onChange={event => {
+              const selected = pdf.selectedCourses ?? index.courses.map(course => course.id);
+              pdf.selectCourses(event.target.checked ? [...new Set([...selected, course.id])] : selected.filter(id => id !== course.id));
+            }} /> {course.name}</label>
+            <p>{indexed} indexed · {failed.length} failed · {Math.max(0, documents.length - indexed - failed.length)} pending{documents.some(resource => resource.id === pdf.currentResource) ? ' · Reading now' : ''}</p>
+            <button className="ls-chip" disabled={!verifiedGeneration || !pdf.enabled} onClick={() => pdf.prioritize(course.id)}>Prioritize course — clear other PDF text</button>
+            {failed.map(resource => <div key={resource.id}><span>{resource.title}: {pdf.failures[resource.id]}</span> <button className="ls-chip" disabled={!verifiedGeneration || !pdf.enabled} onClick={() => pdf.retry(resource.id)}>Retry {resource.title}</button></div>)}
+          </div>;
+        })}
+        <p>The cache holds up to 100 PDFs within its text-size limit. Prioritizing frees space by removing other courses’ PDF text; their document links remain available. Failures shown here are from this open session.</p>
+      </fieldset>}
       <div className="ls-connection-actions">
         <button className="ls-chip" aria-pressed={semanticEnabled} onClick={toggleSemanticSearch}>
           Meaning search: {semanticEnabled ? 'on' : 'off'}
