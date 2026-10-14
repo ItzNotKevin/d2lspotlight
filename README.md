@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.5.3 adds course-specific PDF indexing:** choose courses under Settings → LEARN and PDFs, inspect indexed/pending/failed counts, retry failed files individually, or prioritize a course by clearing other courses’ cached text. Course selections persist per account.
+
 **v0.5.2 simplifies the search window:** maintenance and source controls are under Settings, while login status and website-access prompts remain visible. Website results show their destination domain and a preview around the matching text.
 
 **v0.5.1 verifies your LEARN login before searching saved results on any tab.** Reload the extension and webpage to enable the session gate.

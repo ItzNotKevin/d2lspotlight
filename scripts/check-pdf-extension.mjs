@@ -24,6 +24,7 @@ const errors = [];
 const requested = [];
 let loggedOut = false;
 let sessionDelay = 0;
+let failSecondPdf = false;
 function call(method, params = {}, sessionId) {
   return new Promise((resolveCall, reject) => {
     const id = ++sequence;
@@ -76,7 +77,7 @@ browser.stdio[4].on('data', data => {
       const { requestId, request } = message.params;
       requested.push(request.url);
       const [type, body] = fixture(request.url);
-      const responseCode = loggedOut && request.url.endsWith('/users/whoami') ? 401 : 200;
+      const responseCode = loggedOut && request.url.endsWith('/users/whoami') ? 401 : failSecondPdf && request.url.includes('/231/notes.pdf') ? 503 : 200;
       const delay = request.url.endsWith('/d2l/api/versions/') ? sessionDelay : 0;
       const fulfill = () => call('Fetch.fulfillRequest', { requestId, responseCode,
         responseHeaders: [{ name: 'Content-Type', value: type }], body: Buffer.from(body).toString('base64') }, message.sessionId).catch(error => {
@@ -206,6 +207,32 @@ try {
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
   await until(() => evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), Boolean, 'Tab-local Command Shift K must reopen a fully disposed overlay');
+  await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 indexed') && text.includes('STAT 230'), 'Course indexing counts must be displayed');
+  const settingsWheel = await evaluate(page, `(() => {
+    const panel = ${root}.querySelector('.ls-settings-body');
+    const bounds = panel.getBoundingClientRect();
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + 65, pageScroll: window.scrollY };
+  })()`);
+  await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: settingsWheel.x, y: settingsWheel.y }, page);
+  await call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: settingsWheel.x, y: settingsWheel.y, deltaX: 0, deltaY: 180 }, page);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-settings-body').scrollTop`), top => top > 0, 'Wheel and trackpad events must scroll hovered Settings');
+  assert.equal(await evaluate(page, 'window.scrollY'), settingsWheel.pageScroll, 'Settings scrolling must not move the page behind Spotlight');
+  await evaluate(page, `(() => { const panel = ${root}.querySelector('.ls-settings-body'); panel.scrollTop = 0; })()`);
+  await evaluate(page, `Array.from(${root}.querySelectorAll('.ls-pdf-course')).find(row => row.textContent.includes('STAT 230')).querySelector('button').click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get('pdfIndexCourses:fixture-account')"), saved => saved['pdfIndexCourses:fixture-account']?.join() === '230', 'Prioritization must save course selection');
+  await until(() => evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => chrome.runtime.sendMessage({ type: 'pdf-index', action: 'status' }) }))[0].result;
+  })()`), result => result.documents.length === 1 && result.documents[0].id.includes(':230:'), 'Prioritization must retain chosen-course PDF text and remove other-course text');
+  failSecondPdf = true;
+  await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 231 Fall 2026"]').click()`);
+  await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 230 Fall 2026"]').click()`);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 failed') && text.includes('Retry week_02.pdf'), 'Failed PDF must show its error and individual retry');
+  failSecondPdf = false;
+  await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Retry week_02.pdf').click()`);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => !text?.includes('1 failed') && !text?.includes('Retry week_02.pdf'), 'Individual retry must clear a resolved failure');
+  await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'All courses / follow search filters').click()`);
   await evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
     return chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => chrome.runtime.sendMessage({ type: 'learn-index', action: 'clear' }) });
@@ -290,7 +317,7 @@ try {
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', collapsedSettings: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }

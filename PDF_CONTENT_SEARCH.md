@@ -27,3 +27,11 @@ Spotlight searches selectable text inside LEARN PDFs. `permutation` or `stat230 
 `npm run check:pdf:extension` uses disposable headless Chrome with intercepted LEARN/PDF fixtures to check automatic extraction, rendered snippets, filters, Enter opening the page URL, original-resource history, persistence after closing the parser, and data clearing. A host permission is added only to the temporary fixture copy; the shipped extension still uses activeTab. This does not establish live Waterloo access or your actual PDFs' extraction quality.
 
 References: [D2L content file endpoint](https://docs.valence.desire2learn.com/res/content.html), [PDF.js API](https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib.html).
+
+## Course indexing controls (v0.5.3)
+
+In Settings → LEARN and PDFs, use course checkboxes to index independently of search filters. Choices persist per account and synchronize across open tabs. All courses / follow search filters restores the original automatic scope. Unchecking a course stops new work for it without removing saved text.
+
+Each course shows indexed, pending and failed counts and the currently reading course. Failures and individual retry buttons cover the current open session; retrying one file bypasses search filters and course selection for that request. Paused indexing must be enabled before retrying or prioritizing.
+
+Prioritize course — clear other PDF text keeps the chosen course’s cached text, cancels active extraction, selects that course, and removes other cached PDF text. Metadata links remain available. The existing 100-document and text-size limits still apply, so large courses may have pending PDFs even after prioritization. Cache capacity and cancellation are not counted as unreadable files.
