@@ -82,8 +82,7 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
     catch (error) { setMessage(error.message); }
   }
 
-  return <div className="ls-connection">
-    {promptSite && <section className="ls-site-consent" role="region" aria-label="Course website access" onKeyDown={event => {
+  const prompt = promptSite && <section className="ls-site-consent" role="region" aria-label="Course website access" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); deferSite(promptSite); }
     }}>
       <strong>Include {promptSite.code}’s course website?</strong>
@@ -97,7 +96,17 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
         }}>Allow and index</button>
         <button className="ls-chip" onClick={() => deferSite(promptSite)}>Not now</button>
       </div>
-    </section>}
+    </section>;
+  const status = <div className="ls-site-status">
+    {message && <p role="status">{message}</p>}
+    {busy && <button className="ls-chip" onClick={() => {
+      const id = request.current;
+      if (!id) return;
+      chrome.runtime.sendMessage({ type: 'course-site', action: 'cancel', requestId: id }).catch(() => {});
+      setMessage('Cancelling website indexing…');
+    }}>Cancel website indexing</button>}
+  </div>;
+  const settings = <div className="ls-connection">
     {(index.courseSites || []).map(site => <div className="ls-connection-actions" key={`${site.courseId}:${site.root}`}>
       <span>{site.code} · Course website{site.enabled ? ` · ${site.pageCount || 0} pages${site.partial ? ' · partial' : ''}` : ' detected'}</span>
       <a className="ls-chip" href={site.url} target="_blank" rel="noreferrer">Open website</a>
@@ -108,12 +117,6 @@ export function useCourseSites({ index, isOpen, verifiedGeneration }) {
       <input className="ls-course-filter" aria-label="External course website URL" type="url" placeholder="Course website URL (if not detected)" value={manualUrl} onChange={event => setManualUrl(event.target.value)} />
       <button className="ls-chip" disabled={!manualUrl.trim() || !verified || busy} onClick={add}>Add course website</button>
     </div>}
-    {message && <p role="status">{message}</p>}
-    {busy && <button className="ls-chip" onClick={() => {
-      const id = request.current;
-      if (!id) return;
-      chrome.runtime.sendMessage({ type: 'course-site', action: 'cancel', requestId: id }).catch(() => {});
-      setMessage('Cancelling website indexing…');
-    }}>Cancel website indexing</button>}
   </div>;
+  return { prompt, status, settings };
 }

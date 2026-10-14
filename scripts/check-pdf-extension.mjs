@@ -107,6 +107,7 @@ try {
   const { id } = await call('Extensions.loadUnpacked', { path: extension });
   const { targetId } = await call('Target.createTarget', { url: 'about:blank' });
   const { sessionId: page } = await call('Target.attachToTarget', { targetId, flatten: true });
+  await call('Emulation.setDeviceMetricsOverride', { width: 1100, height: 800, deviceScaleFactor: 1, mobile: false }, page);
   await call('Runtime.enable', {}, page);
   await call('Fetch.enable', { patterns: [{ urlPattern: `${origin}/*`, requestStage: 'Request' }] }, page);
   await call('Page.navigate', { url: `${origin}/` }, page);
@@ -123,6 +124,7 @@ try {
   })()`);
   const root = "document.getElementById('learn-spotlight-root')?.shadowRoot";
   await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 PDFs'), 'Automatic PDF indexing must finish');
+  assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), false, 'Maintenance settings must start collapsed');
   async function closeAndReopen() {
     await evaluate(background, `(async () => {
       const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
@@ -153,6 +155,9 @@ try {
   await change('input[type=search]', 'permutation');
   const matched = await until(rows, text => text?.includes('PDF page 2') && text.includes('STAT_231'), 'PDF contents must match across courses');
   assert.match(matched, /ordered arrangement/);
+  await new Promise(resolveWait => setTimeout(resolveWait, 500));
+  const preview = await call('Page.captureScreenshot', { format: 'png' }, page);
+  await writeFile(join(tmpdir(), 'spotlight-search-preview.png'), Buffer.from(preview.data, 'base64'));
   await change('[aria-label="Filter by course"]', '230');
   await until(rows, text => text?.includes('PDF page 2') && !text.includes('STAT_231'), 'Course filter must exclude STAT 231');
   const section = JSON.stringify(['230', 'Lecture notes / Instructor A']);
@@ -249,6 +254,8 @@ try {
   await change('input[type=search]', 'cs246 official outline');
   await until(rows, text => text?.includes('Linked reference'), 'Official outline reference must be searchable');
   assert.ok(!requested.some(url => url.startsWith('https://outline.uwaterloo.ca/')), 'Reference must open as a link rather than crawling another site');
+  await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
+  assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), true, 'Settings must open on demand');
   await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Remove website data').click()`);
   await until(() => evaluate(background, "chrome.storage.local.get('learnSpotlightIndexV1')"), saved => saved.learnSpotlightIndexV1.siteResources?.length === 0, 'Removing website data must remove searchable passages');
   await call('Fetch.enable', { patterns: [{ urlPattern: `${origin}/*`, requestStage: 'Request' }] }, background);
@@ -283,7 +290,7 @@ try {
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', collapsedSettings: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }

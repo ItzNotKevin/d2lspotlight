@@ -25,7 +25,7 @@ export function LearnSpotlight(props) {
   const [accessibleCourses, setAccessibleCourses] = useState([]);
   const [pdfFilters, setPdfFilters] = useState({});
   const pdf = usePdfIndex({ index, isOpen: props.isOpen, verifiedGeneration: location.origin === LEARN_ORIGIN ? verifiedGeneration : null, filters: pdfFilters });
-  const sitesConnection = useCourseSites({ index, isOpen: props.isOpen, verifiedGeneration });
+  const sites = useCourseSites({ index, isOpen: props.isOpen, verifiedGeneration });
 
   const [associations, setAssociations] = useState({ key: '', pairs: {} });
   const associationKey = `courseAssociations:${JSON.stringify([index.accountId, piazza.index.accountId])}`;
@@ -199,7 +199,7 @@ export function LearnSpotlight(props) {
 
   const connection = (
     <div className="ls-connection">
-      <p role="status">{message}</p>
+      <h3>LEARN and PDFs</h3>
       <div className="ls-connection-actions">
         <button className="ls-chip" aria-pressed={semanticEnabled} onClick={toggleSemanticSearch}>
           Meaning search: {semanticEnabled ? 'on' : 'off'}
@@ -229,14 +229,23 @@ export function LearnSpotlight(props) {
       catch (error) { setMessage(error.message); }
     } : null}
     semanticEnabled={semanticEnabled && learnSearchReady} pdfSearchEnabled={learnSearchReady}
-    demo={false} connection={<>{connection}{sitesConnection}{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
+    demo={false} connection={<div className="ls-search-connection">
+      <div className="ls-session-status"><p role="status">{message}</p>
+        {!learnSearchReady && !onLearn && <div className="ls-connection-actions">
+          <a className="ls-chip" href={LEARN_ORIGIN} target="_blank" rel="noreferrer">Open LEARN / sign in</a>
+          <button className="ls-chip" disabled={busy} onClick={checkSavedSession}>{busy ? 'Checking login…' : 'Check LEARN login'}</button>
+        </div>}
+      </div>
+      {sites.prompt}{sites.status}
+      <details className="ls-settings" aria-label="Search settings"><summary>Settings</summary>
+      <div className="ls-settings-body">{connection}<h3>Course websites</h3>{sites.settings}<h3>Piazza</h3>{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:
       <select aria-label={`Confirm course association for ${choice.piazza.name}`} value="" onChange={(event) => {
         const pairs = { ...(associations.key === associationKey ? associations.pairs : {}), [choice.piazza.id]: event.target.value };
         setAssociations({ key: associationKey, pairs });
         chrome.storage.local.set({ [associationKey]: pairs }).catch(() => setMessage('Course association could not be saved.'));
       }}><option value="">{choice.conflictingTerm ? 'Different terms — confirm association' : 'Multiple matches — choose a course'}</option>{choice.learn.map((course) => <option key={course.id} value={course.id}>{course.name} ({course.code || course.id})</option>)}</select>
-    </label>)}</>} onResourceOpen={recordOpen}
-    footer={`v${version} · LEARN + Piazza + Websites${storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved`} · ${footer}`} />;
+    </label>)}<p className="ls-settings-meta">Version {version}{storageBytes === null ? '' : ` · ${(storageBytes / (1024 * 1024)).toFixed(2)} MB saved locally`}</p></div></details></div>} onResourceOpen={recordOpen}
+    footer={footer} />;
 
 }

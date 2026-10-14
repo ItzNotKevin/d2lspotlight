@@ -10,6 +10,7 @@ import { sampleResources } from './sampleResources.js';
 import { usePdfSearch } from './search/pdf/usePdfSearch.jsx';
 import { mergePdfResults } from './search/pdf/core.js';
 import { filterResources } from './learn/search.js';
+import { matchingSnippet } from './search/snippet.js';
 
 const EMPTY_HISTORY = {};
 
@@ -111,6 +112,9 @@ function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, exp
 }
 
 function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) {
+  const snippet = matchingSnippet(resource, query);
+  let destination = '';
+  try { destination = new URL(resource.url).hostname; } catch {}
   const fuzzy = query.trim() && rankResource(resource, prepareQuery(query))?.fuzzy;
   const Icon = resource.type === 'SLIDES' ? Presentation : resource.type === 'PDF' ? BookOpen : FileText;
   // Selection follows mouse movement, not mouse position, so rows sliding under
@@ -136,13 +140,14 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.directLink && <span>Opens directly</span>}
           {resource.pdfMatch && <span>PDF page {resource.pdfPage}{resource.pdfPartial ? ' · partial index' : ''}</span>}
           {resource.websiteSection && <span>Website section</span>}
-          {resource.websiteReference && <span>Linked reference</span>}
+          {resource.websiteReference && <span title="Linked from the course site; destination contents have not been indexed.">Linked reference</span>}
           {resource.instructor && <span>{resource.instructor}</span>}
           {fuzzy && <span>Similar spelling</span>}
           {resource.outlineWeek ? <span title="Topics inferred from the course outline’s weekly plan; document contents have not been read.">Outline suggests Week {resource.outlineWeek.week}</span> : resource.semanticMatch && <span>Related meaning</span>}
           <span className="ls-row-path"><HighlightText text={resource.path} query={query} /></span>
         </span>
-        {resource.snippet && <span className="ls-row-snippet"><HighlightText text={resource.snippet} query={query} /></span>}
+        {resource.source === 'Website' && destination && <span className="ls-row-origin">{resource.websiteReference ? 'Reference destination' : 'Course website'} · {destination}</span>}
+        {snippet && <span className="ls-row-snippet"><HighlightText text={snippet} query={query} /></span>}
       </span>
       <span className="ls-course"><HighlightText text={resource.course} query={query} /></span>
       <ChevronRight className="ls-chevron" size={16} strokeWidth={1.7} aria-hidden="true" />
@@ -333,7 +338,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     }
     if (event.key === 'Tab') {
       // Result rows are reached with the arrow keys, not Tab (listbox pattern).
-      const focusables = [...event.currentTarget.querySelectorAll('input, button:not([disabled]):not([tabindex="-1"]), select:not([disabled]), textarea, a[href]')];
+      const focusables = [...event.currentTarget.querySelectorAll('input, button:not([disabled]):not([tabindex="-1"]), select:not([disabled]), textarea, a[href], summary')].filter(element => element.getClientRects().length);
       const first = focusables[0];
       const last = focusables.at(-1);
       if (event.shiftKey && event.target === first) {
