@@ -29,6 +29,8 @@ await build({ root, configFile: false,
   }
 } });
 
+await build({ root, configFile: false, define: { 'process.env.NODE_ENV': JSON.stringify('production') }, build: { outDir: 'dist', emptyOutDir: false, target: 'es2022', lib: { entry: resolve(root, 'src/standalone.jsx'), name: 'LearnSpotlightWindow', formats: ['iife'], fileName: () => 'standalone.js' }, rollupOptions: { onwarn(warning, handler) { if (warning.code !== 'MODULE_LEVEL_DIRECTIVE') handler(warning); } } } });
+
 await mkdir(resolve(root, 'dist/wasm'), { recursive: true });
 await cp(resolve(root, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'), resolve(root, 'dist/pdf.worker.mjs'));
 await cp(resolve(root, 'node_modules/pdfjs-dist/cmaps'), resolve(root, 'dist/pdf-cmaps'), { recursive: true });

@@ -9,7 +9,7 @@ import { searchPdfFixture } from '../tests/fixtures/search-pdf.js';
 // No request reaches LEARN and no existing browser profile is used.
 const temporary = await mkdtemp(join(tmpdir(), 'spotlight-pdf-check-'));
 const extension = join(temporary, 'extension');
-for (const path of ['src', 'dist', 'background.js', 'semantic.html']) await cp(resolve(path), join(extension, path), { recursive: true });
+for (const path of ['src', 'dist', 'background.js', 'semantic.html', 'spotlight.html']) await cp(resolve(path), join(extension, path), { recursive: true });
 // Expose the statically imported handler only in the disposable fixture: dynamic
 // import is disallowed in service workers, and production has no debug globals.
 await writeFile(join(extension, 'dist/background.js'), `${await readFile('dist/background.js', 'utf8')}\nimport { toggleSpotlight as fixtureToggle } from '../src/toggle.js';\nglobalThis.__spotlightToggleForTest = fixtureToggle;\n`);
@@ -333,11 +333,43 @@ try {
   await evaluate(crossPage, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Check LEARN login').click()`);
   assert.equal(await crossRows(), 0, 'Retry must keep cached results hidden until verification succeeds');
   await until(crossRows, count => count > 0, 'Confirmed login must unlock saved resources on a different tab');
+  const { targetId: newTab } = await call('Target.createTarget', { url: 'chrome://newtab/' });
+  const { sessionId: newTabPage } = await call('Target.attachToTarget', { targetId: newTab, flatten: true });
+  await call('Page.bringToFront', {}, newTabPage);
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+    if (!tab || !await globalThis.__spotlightToggleForTest({ ...tab, url: 'chrome://newtab/' }, chrome, 'toolbar')) throw new Error('New tab fallback failed');
+  })()`);
+  const standaloneTarget = await until(() => call('Target.getTargets'), targets => targets.targetInfos.some(target => target.url === `chrome-extension://${id}/spotlight.html`), 'Restricted page must open a standalone Spotlight window');
+  const standaloneInfo = standaloneTarget.targetInfos.find(target => target.url === `chrome-extension://${id}/spotlight.html`);
+  const { sessionId: standalonePage } = await call('Target.attachToTarget', { targetId: standaloneInfo.targetId, flatten: true });
+  await call('Runtime.enable', {}, standalonePage);
+  await until(() => evaluate(standalonePage, `${root}?.textContent`), text => text?.includes('LEARN login confirmed'), 'Standalone window must verify login through the shared broker');
+  await evaluate(standalonePage, `(() => {
+    const input = ${root}.querySelector('input[type=search]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'stat230');
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  })()`);
+  await until(() => evaluate(standalonePage, `${root}?.querySelectorAll('[role=option]').length`), count => count > 0, 'Standalone window must search the shared course index');
+  await evaluate(standalonePage, `(() => {
+    const input = ${root}.querySelector('input[type=search]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'permutation');
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  })()`);
+  await until(() => evaluate(standalonePage, `${root}?.querySelector('[role=listbox]')?.textContent`), text => text?.includes('PDF page 2'), 'Standalone window must search the shared PDF cache');
+  await new Promise(resolveWait => setTimeout(resolveWait, 400));
+  const standalonePreview = await call('Page.captureScreenshot', { format: 'png' }, standalonePage);
+  await writeFile(join(tmpdir(), 'spotlight-standalone-preview.png'), Buffer.from(standalonePreview.data, 'base64'));
+  await evaluate(background, `(async () => {
+    await globalThis.__spotlightToggleForTest({ id: 0, url: 'chrome://newtab/' }, chrome, 'command');
+  })()`);
+  const allTargets = await call('Target.getTargets');
+  assert.equal(allTargets.targetInfos.filter(target => target.url === `chrome-extension://${id}/spotlight.html`).length, 1, 'Repeated fallback must reuse the search window');
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }

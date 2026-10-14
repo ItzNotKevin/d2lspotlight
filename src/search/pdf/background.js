@@ -4,6 +4,7 @@ import { ensureDocument } from '../semantic/background.js';
 import { openPdfCache } from './cache.js';
 import { MAX_CACHE_CHARS, MAX_DOCUMENTS, pdfRevision, notesSection, searchPdfPages, pdfPageUrl } from './core.js';
 import { studyWeight } from '../relevance.js';
+import { isSearchSender } from '../../message-sender.js';
 
 let queue = Promise.resolve();
 const active = new Map();
@@ -58,8 +59,8 @@ export async function searchPdfCache(cache, index, query, filters = {}) {
 
 export function registerPdfSearch() {
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
-    if (message?.type !== 'pdf-index' || sender.id !== chrome.runtime.id || !sender.tab || sender.frameId !== 0) return;
-    const id = `${sender.tab.id}:${String(message.requestId || '').slice(0, 100)}`;
+    if (message?.type !== 'pdf-index' || !isSearchSender(sender, chrome.runtime.id)) return;
+    const id = `${sender.tab?.id ?? 'standalone'}:${String(message.requestId || '').slice(0, 100)}`;
     let onLearn = false;
     try { onLearn = new URL(sender.url).origin === 'https://learn.uwaterloo.ca'; } catch {}
     if (message.action === 'cancel') { cancel(id); reply({ ok: true }); return; }

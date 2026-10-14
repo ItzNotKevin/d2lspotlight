@@ -6,6 +6,7 @@ import { clearPdfCache, registerPdfSearch } from './src/search/pdf/background.js
 import { toggleSpotlight } from './src/toggle.js';
 import { registerCourseSites } from './src/sites/background.js';
 import { registerLearnSession } from './src/learn/session.js';
+import { isSearchSender } from './src/message-sender.js';
 
 registerSemanticSearch();
 registerPdfSearch();
@@ -20,7 +21,7 @@ async function updateIndex(store, action, payload) {
 
 const piazzaStore = createIndexStore(chrome.storage.local, PIAZZA_CACHE_KEY);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (message?.type !== 'piazza-index' || sender.id !== chrome.runtime.id || !sender.tab) return;
+  if (message?.type !== 'piazza-index' || !isSearchSender(sender, chrome.runtime.id)) return;
   let onPiazza = false;
   try { onPiazza = new URL(sender.url).origin === 'https://piazza.com' && sender.frameId === 0; } catch {}
   if (['begin', 'commit', 'rename-course'].includes(message.action) && !onPiazza) {
@@ -46,7 +47,7 @@ const indexStore = createIndexStore(chrome.storage.local);
 registerLearnSession(indexStore);
 registerCourseSites(indexStore);
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (message?.type !== 'learn-index' || sender.id !== chrome.runtime.id || !sender.tab) return;
+  if (message?.type !== 'learn-index' || !isSearchSender(sender, chrome.runtime.id)) return;
   let onLearn = false;
   try { onLearn = new URL(sender.url).origin === 'https://learn.uwaterloo.ca'; } catch {}
   if (['begin', 'commit', 'label-notes', 'discover-sites', 'begin-site', 'commit-site', 'remove-site'].includes(message.action) && !onLearn) {

@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.6.0 adds a standalone search window:** toolbar or shortcut launches on restricted Chrome pages (including fresh tabs) open the same search UI in an extension-owned window. Normal webpages keep the overlay. The window shares saved course/PDF data and verifies your LEARN login before searching, and repeated launches reuse it. A system-wide shortcut for VS Code or other applications is not included.
+
 **v0.5.5 fixes background-worker startup:** the worker and its catalog data are bundled into `dist/background.js`, avoiding raw JSON module loading in Chrome. A shortcut controller is installed on LEARN pages before first use, and toolbar launches reuse that controller. Reload the extension and refresh existing LEARN tabs to activate it.
 
 **v0.5.4 improves search relevance and coverage feedback:** comparable topic matches modestly favor teaching material, results explain why they matched, and incomplete PDF/site coverage remains visible. Unindexed Waterloo CS host-alias candidates are deduplicated while indexed entries are retained.
