@@ -1,4 +1,5 @@
 import { createLearnClient, LEARN_ORIGIN } from './client.js';
+import { isSearchSender } from '../message-sender.js';
 
 // The extension's host permission allows the session check from any tab.
 // Never send session cookies to the page on which Spotlight was opened.
@@ -11,7 +12,7 @@ export async function verifyLearnSession({ fetchImpl = fetch, signal } = {}) {
 
 export function registerLearnSession(store, api = chrome, verify = verifyLearnSession) {
   api.runtime.onMessage.addListener((message, sender, reply) => {
-    if (message?.type !== 'learn-session' || sender.id !== api.runtime.id || !sender.tab || sender.frameId !== 0) return;
+    if (message?.type !== 'learn-session' || !isSearchSender(sender, api.runtime.id)) return;
     (async () => {
       const session = await verify();
       const saved = await store('read');

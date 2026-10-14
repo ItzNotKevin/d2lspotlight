@@ -6,6 +6,7 @@ import { prepareQuery } from '../rank.js';
 import { resourceText } from './model.js';
 import { openEmbeddingCache } from './cache.js';
 import { associateCourses } from '../associations.js';
+import { isSearchSender } from '../../message-sender.js';
 
 let creating;
 let clearing = Promise.resolve();
@@ -66,11 +67,11 @@ export async function clearSemanticCache() {
 
 export function registerSemanticSearch() {
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
-    if (!['semantic-search', 'semantic-cancel'].includes(message?.type) || sender.id !== chrome.runtime.id || !sender.tab || sender.frameId !== 0) return;
+    if (!['semantic-search', 'semantic-cancel'].includes(message?.type) || !isSearchSender(sender, chrome.runtime.id)) return;
     if (message.type === 'semantic-cancel') {
-      if (requests.get(sender.tab.id) === message.requestId) requests.delete(sender.tab.id);
+      if (requests.get((sender.tab?.id ?? 'standalone')) === message.requestId) requests.delete((sender.tab?.id ?? 'standalone'));
       chrome.runtime.sendMessage({ target: 'semantic-offscreen', action: 'cancel',
-        client: String(sender.tab.id), requestId: message.requestId }).catch(() => {});
+        client: String((sender.tab?.id ?? 'standalone')), requestId: message.requestId }).catch(() => {});
       return;
     }
     const query = typeof message.query === 'string' ? message.query.trim().slice(0, 300) : '';
@@ -79,8 +80,8 @@ export function registerSemanticSearch() {
       return;
     }
     const requestId = typeof message.requestId === 'string' ? message.requestId : crypto.randomUUID();
-    requests.set(sender.tab.id, requestId);
-    const current = () => requests.get(sender.tab.id) === requestId;
+    requests.set((sender.tab?.id ?? 'standalone'), requestId);
+    const current = () => requests.get((sender.tab?.id ?? 'standalone')) === requestId;
     (async () => {
       await clearing;
       const before = await snapshot();
@@ -92,12 +93,12 @@ export function registerSemanticSearch() {
       await ensureDocument();
       if (!current()) return { ok: false, error: 'Search superseded.' };
       const response = await chrome.runtime.sendMessage({ target: 'semantic-offscreen', action: 'search',
-        client: String(sender.tab.id), requestId, query, resources: before.resources, allowedIds, fingerprint: before.fingerprint });
+        client: String((sender.tab?.id ?? 'standalone')), requestId, query, resources: before.resources, allowedIds, fingerprint: before.fingerprint });
       const after = await snapshot();
       if (!current() || after.fingerprint !== before.fingerprint) return { ok: false, error: 'Saved resources changed. Search again.' };
       return response;
     })().then(reply, () => reply({ ok: false, error: 'Meaning search unavailable. Keyword search still works.' })).finally(() => {
-      if (current()) requests.delete(sender.tab.id);
+      if (current()) requests.delete((sender.tab?.id ?? 'standalone'));
     });
     return true;
   });
