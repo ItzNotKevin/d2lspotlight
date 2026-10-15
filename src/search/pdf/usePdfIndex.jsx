@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { subscribeStorageChanges } from '../../extension-context.js';
 import { indexMessage } from '../../learn/cache.js';
 import { downloadPdf, encodePdf, MAX_DOCUMENTS, pdfRevision, notesSection } from './core.js';
+import { shouldIndexPdf } from './retention.js';
 
 export async function pdfMessage(action, payload = {}) {
   const response = await chrome.runtime.sendMessage({ type: 'pdf-index', action, ...payload });
@@ -18,11 +19,27 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
   const [retry, setRetry] = useState(0);
   const controller = useRef(null);
   const [selectedCourses, setSelectedCourses] = useState(null);
+  const [pinnedCourses, setPinnedCourses] = useState([]);
   const [preferencesReady, setPreferencesReady] = useState(null);
   const failures = Object.fromEntries(Object.entries(status?.progress || {}).filter(([, entry]) => entry.state === 'failed').map(([id, entry]) => [id, entry.error]));
   const [currentResource, setCurrentResource] = useState(null);
   const retryTarget = useRef(null);
   const preferenceKey = `pdfIndexCourses:${index.accountId}`;
+  const pinsKey = `pdfPinnedCourses:${index.accountId}`;
+  useEffect(() => {
+    let active = true;
+    setPinnedCourses([]);
+    chrome.storage.local.get(pinsKey).then(saved => { if (active) setPinnedCourses(Array.isArray(saved[pinsKey]) ? saved[pinsKey] : []); }).catch(() => {});
+    const unsubscribe = subscribeStorageChanges((changes, area) => {
+      if (active && area === 'local' && changes[pinsKey]) setPinnedCourses(Array.isArray(changes[pinsKey].newValue) ? changes[pinsKey].newValue : []);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [pinsKey]);
+  async function pinCourse(courseId) {
+    const next = pinnedCourses.includes(courseId) ? pinnedCourses.filter(id => id !== courseId) : [...pinnedCourses, courseId];
+    try { await chrome.storage.local.set({ [pinsKey]: next }); setPinnedCourses(next); }
+    catch (error) { setMessage(error.message); }
+  }
   useEffect(() => {
     let active = true;
     setPreferencesReady(null);
@@ -31,15 +48,17 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
     }).catch(() => { if (active) { setSelectedCourses(null); setPreferencesReady(preferenceKey); } });
     const unsubscribe = subscribeStorageChanges((changes, area) => {
       if (active && area === 'local' && changes[preferenceKey]) {
-        controller.current?.abort();
-        setSelectedCourses(changes[preferenceKey].newValue ?? null);
+        const next = changes[preferenceKey].newValue ?? null;
+        setSelectedCourses(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
       }
     });
     return () => { active = false; unsubscribe(); };
   }, [preferenceKey]);
   function selectCourses(ids) {
     controller.current?.abort();
+    retryTarget.current = '@selection';
     setSelectedCourses(ids);
+    setRetry(value => value + 1);
     chrome.storage.local.set({ [preferenceKey]: ids }).catch(error => setMessage(error.message));
   }
   useEffect(() => {
@@ -74,7 +93,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       setStatus(existing);
       const cached = new Map(existing.documents.map(document => [document.id, document.revision]));
       const target = retryTarget.current;
-      const individual = target && target !== '*';
+      const individual = target && !['*', '@selection'].includes(target);
       retryTarget.current = null;
       const candidates = index.resources.filter(resource => resource.type === 'PDF' && resource.pdfUrl
         && (!individual || resource.id === target)
@@ -83,8 +102,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
         && (individual || selectedCourses !== null || !filters.source || filters.source === 'LEARN')
         && (individual || selectedCourses !== null || !filters.notesSection || notesSection(resource) === filters.notesSection)
         && (individual || selectedCourses !== null || !filters.instructor || index.pdfLabels?.[notesSection(resource)] === filters.instructor));
-      const pending = candidates.filter(resource => cached.get(resource.id) !== pdfRevision(resource) && (!target || target === '*' || resource.id === target)
-        && (individual || existing.progress?.[resource.id]?.state !== 'failed'));
+      const pending = candidates.filter(resource => shouldIndexPdf(resource, cached.get(resource.id), existing.progress?.[resource.id], target));
       let done = 0;
       let failed = 0;
       let warning = '';
@@ -156,9 +174,9 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       await pdfMessage('prioritize-course', { courseId, accountId: index.accountId, generation: index.generation });
       selectCourses([courseId]);
       setRetry(value => value + 1);
-      setMessage('Other courses’ cached PDF text removed. Indexing the selected course.');
+      setMessage('Indexing the selected course. Pinned PDF text will be kept when making space.');
     } catch (error) { setMessage(error.message); }
   }
   return { enabled, toggle, clear, retry: id => { retryTarget.current = typeof id === 'string' ? id : '*'; setRetry(value => value + 1); }, message, status, revision,
-    selectedCourses, selectCourses, failures, currentResource, prioritize };
+    selectedCourses, selectCourses, pinnedCourses, pinCourse, failures, currentResource, prioritize };
 }
