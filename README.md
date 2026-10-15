@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.6.1 saves PDF indexing progress and failures:** unfinished files resume in the selected scope when Spotlight is reopened on signed-in LEARN, completed PDFs stay cached, and failed files keep their error and retry control instead of downloading again automatically.
+
 **v0.6.0 adds a standalone search window:** toolbar or shortcut launches on restricted Chrome pages (including fresh tabs) open the same search UI in an extension-owned window. Normal webpages keep the overlay. The window shares saved course/PDF data and verifies your LEARN login before searching, and repeated launches reuse it. A system-wide shortcut for VS Code or other applications is not included.
 
 **v0.5.5 fixes background-worker startup:** the worker and its catalog data are bundled into `dist/background.js`, avoiding raw JSON module loading in Chrome. A shortcut controller is installed on LEARN pages before first use, and toolbar launches reuse that controller. Reload the extension and refresh existing LEARN tabs to activate it.

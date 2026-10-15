@@ -5,6 +5,7 @@ import { openPdfCache } from './cache.js';
 import { MAX_CACHE_CHARS, MAX_DOCUMENTS, pdfRevision, notesSection, searchPdfPages, pdfPageUrl } from './core.js';
 import { studyWeight } from '../relevance.js';
 import { isSearchSender } from '../../message-sender.js';
+import { PDF_PROGRESS_KEY, reconcilePdfProgress, updatePdfProgress } from './progress.js';
 
 let queue = Promise.resolve();
 const active = new Map();
@@ -26,7 +27,7 @@ function cancel(id) {
 }
 export async function clearPdfCache() {
   for (const id of active.keys()) cancel(id);
-  await withCache(cache => cache.clear());
+  await withCache(async cache => { await cache.clear(); await chrome.storage.local.remove(PDF_PROGRESS_KEY); });
   await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
 }
 
@@ -65,7 +66,23 @@ export function registerPdfSearch() {
     try { onLearn = new URL(sender.url).origin === 'https://learn.uwaterloo.ca'; } catch {}
     if (message.action === 'cancel') { cancel(id); reply({ ok: true }); return; }
     (async () => {
-      if (message.action === 'status') return withCache(async cache => pdfStatus(cache, await indexSnapshot()));
+      if (message.action === 'status') return withCache(async cache => {
+        const index = await indexSnapshot();
+        const status = await pdfStatus(cache, index);
+        const saved = (await chrome.storage.local.get(PDF_PROGRESS_KEY))[PDF_PROGRESS_KEY];
+        const progress = reconcilePdfProgress(saved, index, status.documents);
+        if (JSON.stringify(saved) !== JSON.stringify(progress)) await chrome.storage.local.set({ [PDF_PROGRESS_KEY]: progress });
+        return { ...status, progress: progress.entries };
+      });
+      if (message.action === 'progress' && onLearn) return withCache(async cache => {
+        const index = await indexSnapshot();
+        const saved = (await chrome.storage.local.get(PDF_PROGRESS_KEY))[PDF_PROGRESS_KEY];
+        const next = updatePdfProgress(saved, index, message);
+        const status = await pdfStatus(cache, index);
+        const progress = reconcilePdfProgress(next, index, status.documents);
+        await chrome.storage.local.set({ [PDF_PROGRESS_KEY]: progress, pdfProgressRevision: crypto.randomUUID() });
+        return { ...status, progress: progress.entries };
+      });
       if (message.action === 'search') return withCache(async cache => {
         const before = await indexSnapshot();
         const matches = await searchPdfCache(cache, before, String(message.query || '').slice(0, 300), message.filters || {});
@@ -85,7 +102,7 @@ export function registerPdfSearch() {
       if (message.action !== 'extract' || !onLearn) throw new Error('Index PDFs from a signed-in LEARN tab.');
       const before = await indexSnapshot();
       const resource = before.resources.find(resource => resource.id === message.resourceId && resource.type === 'PDF' && resource.pdfUrl);
-      if (!resource || before.accountId !== message.accountId || before.generation !== message.generation) throw new Error('LEARN data changed. Reopen Spotlight.');
+      if (!resource || before.accountId !== message.accountId || before.generation !== message.generation || (message.revision && message.revision !== pdfRevision(resource))) throw new Error('LEARN data changed. Reopen Spotlight.');
       if (active.size >= 2 || active.has(id)) throw new Error('PDF indexing is busy in another tab. Retry shortly.');
       active.set(id, true);
       try {

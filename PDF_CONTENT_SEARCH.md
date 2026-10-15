@@ -32,6 +32,12 @@ References: [D2L content file endpoint](https://docs.valence.desire2learn.com/re
 
 In Settings → LEARN and PDFs, use course checkboxes to index independently of search filters. Choices persist per account and synchronize across open tabs. All courses / follow search filters restores the original automatic scope. Unchecking a course stops new work for it without removing saved text.
 
-Each course shows indexed, pending and failed counts and the currently reading course. Failures and individual retry buttons cover the current open session; retrying one file bypasses search filters and course selection for that request. Paused indexing must be enabled before retrying or prioritizing.
+Each course shows indexed, pending and failed counts and the currently reading course. Failures and individual retry controls persist across closing/reopening and browser restarts; retrying one file bypasses search filters and course selection for that request. Paused indexing must be enabled before retrying or prioritizing.
 
 Prioritize course — clear other PDF text keeps the chosen course’s cached text, cancels active extraction, selects that course, and removes other cached PDF text. Metadata links remain available. The existing 100-document and text-size limits still apply, so large courses may have pending PDFs even after prioritization. Cache capacity and cancellation are not counted as unreadable files.
+
+## Persistent indexing progress (v0.6.1)
+
+Completed text remains in IndexedDB. Small attempt records and errors are saved in extension local storage for the current account and PDF revision. Closing Spotlight interrupts unfinished work; reopening on signed-in LEARN resumes pending or new PDFs in the selected scope when indexing is enabled. Failed PDFs wait for an individual retry or Retry PDF indexing, avoiding repeated automatic downloads. No indexing runs while Spotlight is closed.
+
+Successful indexing removes the saved failure. Changed/removed resources, account changes, Clear PDF text and Clear LEARN data discard obsolete progress. Refresh generations do not erase failures for unchanged PDFs, and attempt IDs prevent an older failure reply from replacing a newer retry. No PDF bytes or session credentials are stored in the progress records.

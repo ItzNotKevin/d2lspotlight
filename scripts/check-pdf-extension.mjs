@@ -25,6 +25,7 @@ const requested = [];
 let loggedOut = false;
 let sessionDelay = 0;
 let failSecondPdf = false;
+let delaySecondPdf = 0;
 function call(method, params = {}, sessionId) {
   return new Promise((resolveCall, reject) => {
     const id = ++sequence;
@@ -78,7 +79,7 @@ browser.stdio[4].on('data', data => {
       requested.push(request.url);
       const [type, body] = fixture(request.url);
       const responseCode = loggedOut && request.url.endsWith('/users/whoami') ? 401 : failSecondPdf && request.url.includes('/231/notes.pdf') ? 503 : 200;
-      const delay = request.url.endsWith('/d2l/api/versions/') ? sessionDelay : 0;
+      const delay = request.url.endsWith('/d2l/api/versions/') ? sessionDelay : request.url.includes('/231/notes.pdf') ? delaySecondPdf : 0;
       const fulfill = () => call('Fetch.fulfillRequest', { requestId, responseCode,
         responseHeaders: [{ name: 'Content-Type', value: type }], body: Buffer.from(body).toString('base64') }, message.sessionId).catch(error => {
           // A tab losing focus cancels its verification request before CDP replies.
@@ -245,12 +246,41 @@ try {
   await until(() => evaluate(page, `${root}.querySelector('.ls-coverage')?.textContent`), text => text?.includes('0 of 1'), 'A course whose PDF text was removed must show incomplete coverage');
   await change('[aria-label="Filter by course"]', '230');
   failSecondPdf = true;
+  delaySecondPdf = 1500;
   await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 231 Fall 2026"]').click()`);
   await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 230 Fall 2026"]').click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get('pdfIndexProgressV1')"), saved => Object.entries(saved.pdfIndexProgressV1?.entries || {}).some(([id, entry]) => id.includes(':231:') && entry.state === 'pending'), 'An unfinished download must have a saved progress record');
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    await globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
+  })()`);
+  await until(() => evaluate(page, "!document.getElementById('learn-spotlight-root')"), Boolean, 'Close must interrupt the unfinished download');
+  const interruptedDownloads = requested.filter(url => url.includes('/231/notes.pdf')).length;
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    await globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
+  })()`);
+  await until(async () => requested.filter(url => url.includes('/231/notes.pdf')).length, count => count > interruptedDownloads, 'Reopening must resume the unfinished PDF download');
   await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 failed') && text.includes('Retry week_02.pdf'), 'Failed PDF must show its error and individual retry');
+  delaySecondPdf = 0;
+  const failedDownloads = requested.filter(url => url.includes('/231/notes.pdf')).length;
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    await globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
+  })()`);
+  await until(() => evaluate(page, "!document.getElementById('learn-spotlight-root')"), Boolean, 'Close must dispose the failed-file UI');
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    await globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
+  })()`);
+  await until(() => evaluate(page, `${root}?.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 failed') && text.includes('Retry week_02.pdf'), 'Failure must survive complete overlay disposal and reopen');
+  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('0 of 1 PDFs in this scope indexed.'), 'Reopened indexing must finish without automatically retrying a saved failure');
+  assert.equal(requested.filter(url => url.includes('/231/notes.pdf')).length, failedDownloads, 'Saved failures must not be downloaded again without an explicit retry');
+  await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
   failSecondPdf = false;
   await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Retry week_02.pdf').click()`);
   await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => !text?.includes('1 failed') && !text?.includes('Retry week_02.pdf'), 'Individual retry must clear a resolved failure');
+  await until(() => evaluate(page, `Array.from(${root}.querySelectorAll('.ls-pdf-course')).find(row => row.textContent.includes('STAT 231'))?.textContent`), text => text?.includes('1 indexed'), 'Retried PDF must actually finish indexing');
   await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'All courses / follow search filters').click()`);
   await evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
@@ -369,7 +399,7 @@ try {
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }
