@@ -220,7 +220,7 @@ export function LearnSpotlight(props) {
             {failed.map(resource => <div key={resource.id}><span>{resource.title}: {pdf.failures[resource.id]}</span> <button className="ls-chip" disabled={!verifiedGeneration || !pdf.enabled} onClick={() => pdf.retry(resource.id)}>Retry {resource.title}</button></div>)}
           </div>;
         })}
-        <p>The cache holds up to 100 PDFs within its text-size limit. Prioritizing frees space by removing other courses’ PDF text; their document links remain available. Failures shown here are from this open session.</p>
+        <p>The cache holds up to 100 PDFs within its text-size limit. Prioritizing frees space by removing other courses’ PDF text; their document links remain available. Progress and failures are saved. Unfinished PDFs in your selected scope resume when you reopen Spotlight on LEARN; failed files wait for a retry.</p>
       </fieldset>}
       <div className="ls-connection-actions">
         <button className="ls-chip" aria-pressed={semanticEnabled} onClick={toggleSemanticSearch}>
