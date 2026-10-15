@@ -17,6 +17,10 @@ export async function openPdfCache() {
   return {
     all: () => run('readonly', store => store.getAll()),
     put: document => run('readwrite', store => store.put(document)),
+    replace: (document, removed) => run('readwrite', store => {
+      for (const id of removed) store.delete(id);
+      store.put(document);
+    }),
     remove: ids => run('readwrite', store => { for (const id of ids) store.delete(id); }),
     clear: () => run('readwrite', store => store.clear()), close: () => db.close()
   };

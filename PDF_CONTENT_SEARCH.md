@@ -34,10 +34,18 @@ In Settings → LEARN and PDFs, use course checkboxes to index independently of 
 
 Each course shows indexed, pending and failed counts and the currently reading course. Failures and individual retry controls persist across closing/reopening and browser restarts; retrying one file bypasses search filters and course selection for that request. Paused indexing must be enabled before retrying or prioritizing.
 
-Prioritize course — clear other PDF text keeps the chosen course’s cached text, cancels active extraction, selects that course, and removes other cached PDF text. Metadata links remain available. The existing 100-document and text-size limits still apply, so large courses may have pending PDFs even after prioritization. Cache capacity and cancellation are not counted as unreadable files.
+In v0.6.2, Index this course selects the course and restores missing/replaced PDF text without clearing other courses up front. Metadata links remain available. The existing 100-document and text-size limits still apply, so large courses may have pending PDFs even after prioritization. Cache capacity and cancellation are not counted as unreadable files.
 
 ## Persistent indexing progress (v0.6.1)
 
 Completed text remains in IndexedDB. Small attempt records and errors are saved in extension local storage for the current account and PDF revision. Closing Spotlight interrupts unfinished work; reopening on signed-in LEARN resumes pending or new PDFs in the selected scope when indexing is enabled. Failed PDFs wait for an individual retry or Retry PDF indexing, avoiding repeated automatic downloads. No indexing runs while Spotlight is closed.
 
 Successful indexing removes the saved failure. Changed/removed resources, account changes, Clear PDF text and Clear LEARN data discard obsolete progress. Refresh generations do not erase failures for unchanged PDFs, and attempt IDs prevent an older failure reply from replacing a newer retry. No PDF bytes or session credentials are stored in the progress records.
+
+## Automatic cache replacement and pinning (v0.6.2)
+
+Pin course protects already cached text from automatic replacement; pinning does not automatically select or download that course. Pins persist per account and synchronize across tabs. Manual Clear PDF text still clears all text, including pinned courses, while retaining the pin choices.
+
+When inserting a PDF would exceed the document-count or text-size limit, Spotlight replaces the least recently opened/indexed unpinned text needed to fit. Older entries without timestamps are replaced first. Deletion and insertion share one IndexedDB transaction, so an insertion failure preserves existing cache contents. If pinned data leaves too little room, indexing stops with an Unpin/clear message instead of deleting pinned text.
+
+Replaced files remain available by their metadata links and are labelled not cached in coverage. They are skipped during automatic reopening to avoid continual downloading/eviction cycles. Select their course or use Retry PDF indexing to restore them; saved failures still need an explicit retry. Changed document revisions can be indexed automatically again.

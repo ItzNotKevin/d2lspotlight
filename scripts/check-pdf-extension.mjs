@@ -237,11 +237,19 @@ try {
   assert.equal(await evaluate(page, 'window.scrollY'), settingsWheel.pageScroll, 'Settings scrolling must not move the page behind Spotlight');
   await evaluate(page, `(() => { const panel = ${root}.querySelector('.ls-settings-body'); panel.scrollTop = 0; })()`);
   await evaluate(page, `Array.from(${root}.querySelectorAll('.ls-pdf-course')).find(row => row.textContent.includes('STAT 230')).querySelector('button').click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get('pdfPinnedCourses:fixture-account')"), saved => saved['pdfPinnedCourses:fixture-account']?.includes('230'), 'Pinning must save the course per account');
+  await evaluate(page, `Array.from(${root}.querySelectorAll('.ls-pdf-course')).find(row => row.textContent.includes('STAT 230')).querySelectorAll('button')[1].click()`);
   await until(() => evaluate(background, "chrome.storage.local.get('pdfIndexCourses:fixture-account')"), saved => saved['pdfIndexCourses:fixture-account']?.join() === '230', 'Prioritization must save course selection');
   await until(() => evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
     return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => chrome.runtime.sendMessage({ type: 'pdf-index', action: 'status' }) }))[0].result;
-  })()`), result => result.documents.length === 1 && result.documents[0].id.includes(':230:'), 'Prioritization must retain chosen-course PDF text and remove other-course text');
+  })()`), result => result.documents.length === 2, 'Indexing a selected course must not clear other cached text unnecessarily');
+  // Remove one fixture document to exercise incomplete coverage and download retries.
+  await evaluate(background, `(async () => {
+    const db = await new Promise(resolve => { const request = indexedDB.open('spotlight-pdf-v1', 1); request.onsuccess = () => resolve(request.result); });
+    await new Promise((resolve, reject) => { const tx = db.transaction('documents', 'readwrite'); const store = tx.objectStore('documents'); const request = store.getAll(); request.onsuccess = () => { for (const document of request.result) if (document.id.includes(':231:')) store.delete(document.id); }; tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    db.close(); await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
+  })()`);
   await change('[aria-label="Filter by course"]', '231');
   await until(() => evaluate(page, `${root}.querySelector('.ls-coverage')?.textContent`), text => text?.includes('0 of 1'), 'A course whose PDF text was removed must show incomplete coverage');
   await change('[aria-label="Filter by course"]', '230');
@@ -395,6 +403,34 @@ try {
   })()`);
   const allTargets = await call('Target.getTargets');
   assert.equal(allTargets.targetInfos.filter(target => target.url === `chrome-extension://${id}/spotlight.html`).length, 1, 'Repeated fallback must reuse the search window');
+  // Fill the real IndexedDB cache, making the pinned course the oldest entry.
+  const policySetup = await evaluate(background, `(async () => {
+    const key = 'learnSpotlightIndexV1';
+    const index = (await chrome.storage.local.get(key))[key];
+    const seeds = Array.from({ length: 98 }, (_, number) => ({ id: 'cache-seed-' + number, courseId: '231', course: 'STAT 231', type: 'PDF', title: 'Cache fixture', pdfUrl: '${origin}/content/cache-' + number + '.pdf' }));
+    const incoming = { id: 'cache-new', courseId: '230', course: 'STAT 230', type: 'PDF', title: 'New lecture notes', pdfUrl: '${origin}/content/cache-new.pdf' };
+    await chrome.storage.local.set({ [key]: { ...index, resources: [...index.resources, ...seeds, incoming] }, ['pdfPinnedCourses:' + index.accountId]: ['230'] });
+    const db = await new Promise(resolve => { const request = indexedDB.open('spotlight-pdf-v1', 1); request.onsuccess = () => resolve(request.result); });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('documents', 'readwrite'); const store = tx.objectStore('documents');
+      const read = store.getAll(); read.onsuccess = () => { for (const document of read.result) if (document.id.includes(':230:')) store.put({ ...document, lastUsedAt: 0, indexedAt: 0 }); };
+      seeds.forEach((resource, number) => store.put({ id: resource.id, accountId: index.accountId, revision: JSON.stringify([resource.pdfUrl, resource.modifiedAt]), pages: [{ page: 1, text: 'fixture' }], chars: 7, totalPages: 1, emptyPages: 0, partial: false, lastUsedAt: number + 1 }));
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return { accountId: index.accountId, generation: index.generation };
+  })()`);
+  const policyResult = await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/d2l/home/246');
+    return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: payload => chrome.runtime.sendMessage(payload), args: [${JSON.stringify({ type: 'pdf-index', action: 'extract', requestId: 'retention-check', resourceId: 'cache-new', ...policySetup, bytes: Buffer.from(pdfBytes).toString('base64') })}] }))[0].result;
+  })()`);
+  assert.equal(policyResult.ok, true, 'A full cache must automatically make space');
+  const retained = await evaluate(standalonePage, "chrome.runtime.sendMessage({ type: 'pdf-index', action: 'status' })");
+  assert.equal(retained.documents.length, 100);
+  assert.ok(retained.documents.some(document => document.id.includes(':230:')), 'Old pinned text must survive replacement');
+  assert.ok(retained.documents.some(document => document.id === 'cache-new'));
+  assert.ok(!retained.documents.some(document => document.id === 'cache-seed-0'), 'Oldest unpinned text must be replaced');
+  assert.equal(retained.progress['cache-seed-0'].state, 'evicted', 'Replaced text must be tracked to prevent repeated automatic downloads');
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',

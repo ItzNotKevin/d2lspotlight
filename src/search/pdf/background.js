@@ -6,6 +6,7 @@ import { MAX_CACHE_CHARS, MAX_DOCUMENTS, pdfRevision, notesSection, searchPdfPag
 import { studyWeight } from '../relevance.js';
 import { isSearchSender } from '../../message-sender.js';
 import { PDF_PROGRESS_KEY, reconcilePdfProgress, updatePdfProgress } from './progress.js';
+import { planPdfRetention } from './retention.js';
 
 let queue = Promise.resolve();
 const active = new Map();
@@ -89,13 +90,18 @@ export function registerPdfSearch() {
         const after = await indexSnapshot();
         return before.generation === after.generation && before.accountId === after.accountId ? { ok: true, matches } : { ok: true, matches: [] };
       });
+      if (message.action === 'touch') return withCache(async cache => {
+        const index = await indexSnapshot();
+        if (index.accountId !== message.accountId) return { ok: true };
+        const document = (await cache.all()).find(document => document.id === message.resourceId && currentDocument(document, index));
+        if (document) await cache.put({ ...document, lastUsedAt: Date.now() });
+        return { ok: true };
+      });
       if (message.action === 'prioritize-course' && onLearn) return withCache(async cache => {
         const index = await indexSnapshot();
         if (index.accountId !== message.accountId || index.generation !== message.generation || !index.courses.some(course => course.id === message.courseId)) throw new Error('LEARN data changed. Reopen Spotlight.');
         for (const id of active.keys()) cancel(id);
         await chrome.storage.local.set({ [`pdfIndexCourses:${index.accountId}`]: [message.courseId] });
-        const keep = new Set(index.resources.filter(resource => resource.courseId === message.courseId).map(resource => resource.id));
-        await cache.remove((await cache.all()).filter(document => !keep.has(document.id)).map(document => document.id));
         await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
         return pdfStatus(cache, index);
       });
@@ -116,8 +122,21 @@ export function registerPdfSearch() {
             || !after.resources.some(item => item.id === resource.id && pdfRevision(item) === pdfRevision(resource))) throw new Error('LEARN data changed. Reopen Spotlight.');
           const all = (await cache.all()).filter(document => currentDocument(document, after) && document.id !== resource.id);
           await cache.remove((await cache.all()).filter(document => !currentDocument(document, after)).map(document => document.id));
-          if (all.length >= MAX_DOCUMENTS || all.reduce((sum, document) => sum + document.chars, 0) + response.document.chars > MAX_CACHE_CHARS) throw new Error('PDF text cache is full. Prioritize a course in Settings or clear PDF text.');
-          await cache.put({ ...response.document, id: resource.id, accountId: before.accountId, revision: pdfRevision(resource) });
+          const pinsKey = `pdfPinnedCourses:${after.accountId}`;
+          const savedPins = (await chrome.storage.local.get(pinsKey))[pinsKey];
+          const pins = Array.isArray(savedPins) ? savedPins : [];
+          const incoming = { ...response.document, id: resource.id, accountId: before.accountId, revision: pdfRevision(resource), indexedAt: Date.now(), lastUsedAt: Date.now() };
+          const removed = planPdfRetention(all, incoming, after.resources, pins);
+          if (removed.length) {
+            const saved = (await chrome.storage.local.get(PDF_PROGRESS_KEY))[PDF_PROGRESS_KEY];
+            const progress = reconcilePdfProgress(saved, after);
+            for (const document of all.filter(document => removed.includes(document.id))) progress.entries[document.id] = { revision: document.revision, state: 'evicted', updatedAt: Date.now() };
+            await chrome.storage.local.set({ [PDF_PROGRESS_KEY]: progress });
+          }
+          // The cache transaction either removes old text and saves the new PDF,
+          // or preserves everything. A failed transaction's markers reconcile
+          // away on the next status read because the old text is still present.
+          await cache.replace(incoming, removed);
           await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
           return { ok: true, document: { ...response.document, pages: response.document.pages.length } };
         });

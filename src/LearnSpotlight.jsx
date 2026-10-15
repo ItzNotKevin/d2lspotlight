@@ -7,7 +7,7 @@ import { REFRESH_INTERVAL, refreshCourses } from './learn/sync.js';
 import { usePiazzaIndex } from './piazza/usePiazzaIndex.jsx';
 import { piazzaIndexMessage } from './piazza/cache.js';
 import { associateCourses } from './search/associations.js';
-import { usePdfIndex } from './search/pdf/usePdfIndex.jsx';
+import { usePdfIndex, pdfMessage } from './search/pdf/usePdfIndex.jsx';
 import { notesSection } from './search/pdf/core.js';
 import { useCourseSites } from './sites/useCourseSites.jsx';
 
@@ -194,6 +194,7 @@ export function LearnSpotlight(props) {
   }
 
   function recordOpen(resource) {
+    if (resource.source === 'LEARN' && resource.type === 'PDF') pdfMessage('touch', { resourceId: resource.resourceId || resource.id, accountId: index.accountId }).catch(() => {});
     const send = resource.source === 'Piazza' ? piazzaIndexMessage : indexMessage;
     send('opened', { id: resource.resourceId || resource.id }).catch(() => setMessage('Opened resource, but could not save recent history.'));
   }
@@ -206,21 +207,26 @@ export function LearnSpotlight(props) {
         <p>Select courses to index independently of search filters. Saved PDF text stays searchable when a course is unchecked.</p>
         <button className="ls-chip" onClick={() => pdf.selectCourses(null)}>All courses / follow search filters</button>
         {index.courses.map(course => {
-          const documents = index.resources.filter(resource => resource.type === 'PDF' && resource.pdfUrl && resource.courseId === course.id);
+          const documents = index.resources.filter(resource => resource.type === 'PDF' && resource.courseId === course.id);
           if (!documents.length) return null;
           const indexed = documents.filter(resource => pdf.status?.documents.some(document => document.id === resource.id)).length;
           const failed = documents.filter(resource => pdf.failures[resource.id]);
+          const partial = documents.some(resource => pdf.status?.documents.some(document => document.id === resource.id && (document.partial || document.emptyPages)));
+          const replaced = documents.filter(resource => pdf.status?.progress?.[resource.id]?.state === 'evicted').length;
           return <div className="ls-pdf-course" key={course.id}>
             <label><input type="checkbox" aria-label={`Index PDFs for ${course.name}`} checked={pdf.selectedCourses === null || pdf.selectedCourses.includes(course.id)} onChange={event => {
               const selected = pdf.selectedCourses ?? index.courses.map(course => course.id);
               pdf.selectCourses(event.target.checked ? [...new Set([...selected, course.id])] : selected.filter(id => id !== course.id));
             }} /> {course.name}</label>
-            <p>{indexed} indexed · {failed.length} failed · {Math.max(0, documents.length - indexed - failed.length)} pending{documents.some(resource => resource.id === pdf.currentResource) ? ' · Reading now' : ''}</p>
-            <button className="ls-chip" disabled={!verifiedGeneration || !pdf.enabled} onClick={() => pdf.prioritize(course.id)}>Prioritize course — clear other PDF text</button>
+            <p>{indexed} indexed · {failed.length} failed · {Math.max(0, documents.length - indexed - failed.length - replaced)} pending{replaced ? ` · ${replaced} not cached` : ''}{documents.some(resource => resource.id === pdf.currentResource) ? ' · Reading now' : ''}</p>
+            <p>{!pdf.status ? 'Checking coverage…' : indexed === documents.length && !partial ? 'All detected PDF contents searchable' : 'Partial PDF coverage'}{replaced ? ` · ${replaced} replaced to make space` : ''}</p>
+            {documents.some(resource => !resource.pdfUrl) && <p>Some PDF links can’t be indexed automatically.</p>}
+            <button className="ls-chip" aria-pressed={pdf.pinnedCourses.includes(course.id)} onClick={() => pdf.pinCourse(course.id)}>{pdf.pinnedCourses.includes(course.id) ? 'Unpin course' : 'Pin course'}</button>{' '}
+            <button className="ls-chip" disabled={!verifiedGeneration || !pdf.enabled} onClick={() => pdf.prioritize(course.id)}>Index this course</button>
             {failed.map(resource => <div key={resource.id}><span>{resource.title}: {pdf.failures[resource.id]}</span> <button className="ls-chip" disabled={!verifiedGeneration || !pdf.enabled} onClick={() => pdf.retry(resource.id)}>Retry {resource.title}</button></div>)}
           </div>;
         })}
-        <p>The cache holds up to 100 PDFs within its text-size limit. Prioritizing frees space by removing other courses’ PDF text; their document links remain available. Progress and failures are saved. Unfinished PDFs in your selected scope resume when you reopen Spotlight on LEARN; failed files wait for a retry.</p>
+        <p>The cache holds up to 100 PDFs within its text-size limit. Older, less recently opened unpinned text is replaced as needed; document links remain available. Pinning protects existing text, but does not download a course automatically. Manual Clear PDF text still clears everything. Unfinished files resume when reopened; failures wait for retry.</p>
       </fieldset>}
       <div className="ls-connection-actions">
         <button className="ls-chip" aria-pressed={semanticEnabled} onClick={toggleSemanticSearch}>

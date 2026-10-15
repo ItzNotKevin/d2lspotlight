@@ -7,7 +7,7 @@ export function reconcilePdfProgress(saved, index, documents = []) {
   const completed = new Set(documents.map(document => document.id));
   const entries = saved?.accountId === index.accountId ? Object.entries(saved.entries || {}).filter(([id, entry]) =>
     resources.has(id) && entry.revision === pdfRevision(resources.get(id)) && !completed.has(id)
-    && ['pending', 'failed'].includes(entry.state)) : [];
+    && ['pending', 'failed', 'evicted'].includes(entry.state)) : [];
   return { accountId: index.accountId, entries: Object.fromEntries(entries) };
 }
 
