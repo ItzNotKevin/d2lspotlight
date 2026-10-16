@@ -1,6 +1,6 @@
 {
   "name": "d2lspotlight",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,9 @@
     "import:catalog": "node scripts/import-catalog-bundle.mjs",
     "collect:outlines": "node scripts/collect-outlines.mjs",
     "reparse:outlines": "node scripts/reparse-outlines.mjs",
-    "report:outlines": "node scripts/report-outline-coverage.mjs"
+    "report:outlines": "node scripts/report-outline-coverage.mjs",
+    "benchmark:ocr": "node scripts/benchmark-ocr.mjs",
+    "setup:ocr": "node scripts/setup-ocr.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.1",

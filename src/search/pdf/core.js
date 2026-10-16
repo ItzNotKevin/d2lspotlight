@@ -1,6 +1,7 @@
 import { prepareQuery, matchesQueryConstraints, normalizeQuery, topicPhrase, containsPhrase, rankResource } from '../rank.js';
 import { studyWeight } from '../relevance.js';
 import { documentDownloadUrl } from '../documents.js';
+import { mathSearchAliases } from '../ocr/math.js';
 
 export const MAX_PDF_BYTES = 12 * 1024 * 1024;
 export const MAX_PAGES = 400;
@@ -79,19 +80,24 @@ export function searchPdfPages(resource, pages, query, limit = 3) {
   const queryPhrase = topicPhrase(parsed);
   const metadata = normalizeQuery(`${resource.title} ${resource.path} ${resource.courseName} ${resource.instructor || ''}`);
   const matches = [];
-  for (const { page, text, location } of pages) {
-    const normalized = normalizeQuery(text);
-    const words = normalized.split(' ');
-    const contains = term => words.some(word => word === term || (term.length >= 4 && word === `${term}s`));
-    if (!terms.every(term => contains(term) || metadata.split(' ').includes(term)) || !terms.some(contains)) continue;
-    const matched = terms.filter(contains);
-    const position = Math.max(0, text.toLowerCase().indexOf(matched[0]));
-    const start = Math.max(0, position - 90);
-    const snippet = `${start ? '…' : ''}${text.slice(start, start + 260)}${text.length > start + 260 ? '…' : ''}`;
-    const phrase = containsPhrase(normalized, queryPhrase);
-    const occurrences = matched.reduce((sum, term) => sum + Math.min(words.filter(word => word === term || word === `${term}s`).length, 10), 0);
-    matches.push({ page, snippet, location, phraseMatch: phrase && queryPhrase.split(' ').length > 1,
-      score: matched.length * 20 + (phrase ? 15 : 0) + occurrences });
+  for (const { page, text: nativeText, location, ocrText, ocrAliases } of pages) {
+    for (const variant of [{ text: nativeText, aliases: mathSearchAliases(nativeText), ocrMatch: false },
+      ...(ocrText || ocrAliases ? [{ text: `${ocrText || ''}\n${nativeText}`, aliases: ocrAliases || '', ocrMatch: true }] : [])]) {
+      const text = variant.text;
+      const normalized = normalizeQuery(`${text} ${variant.aliases}`);
+      const words = normalized.split(' ');
+      const contains = term => words.some(word => word === term || (term.length >= 4 && word === `${term}s`));
+      if (!terms.every(term => contains(term) || metadata.split(' ').includes(term)) || !terms.some(contains)) continue;
+      const matched = terms.filter(contains);
+      const position = Math.max(0, text.toLowerCase().indexOf(matched[0]));
+      const start = Math.max(0, position - 90);
+      const snippet = `${start ? '…' : ''}${text.slice(start, start + 260)}${text.length > start + 260 ? '…' : ''}`;
+      const phrase = containsPhrase(normalized, queryPhrase);
+      const occurrences = matched.reduce((sum, term) => sum + Math.min(words.filter(word => word === term || word === `${term}s`).length, 10), 0);
+      matches.push({ page, snippet, location, ocrMatch: variant.ocrMatch, phraseMatch: phrase && queryPhrase.split(' ').length > 1,
+        score: matched.length * 20 + (phrase ? 15 : 0) + occurrences });
+      break;
+    }
   }
   return matches.sort((a, b) => b.score - a.score || a.page - b.page).slice(0, limit);
 }

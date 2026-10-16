@@ -239,11 +239,15 @@ export function LearnSpotlight(props) {
           : <><a className="ls-chip" href={LEARN_ORIGIN} target="_blank" rel="noreferrer">Open LEARN / sign in</a><button className="ls-chip" disabled={busy} onClick={checkSavedSession}>{busy ? 'Checking login…' : 'Check LEARN login'}</button></>}
         {index.accountId && <button className="ls-chip" onClick={clear}>Clear LEARN data</button>}
         <button className="ls-chip" aria-pressed={pdf.enabled} onClick={pdf.toggle}>Document indexing: {pdf.enabled ? 'on' : 'paused'}</button>
+        {pdf.status?.ocrAvailable && <button className="ls-chip" aria-pressed={pdf.handwriting} onClick={pdf.toggleHandwriting}>Handwriting indexing: {pdf.handwriting ? 'on' : 'paused'} · experimental</button>}
         {onLearn && <button className="ls-chip" onClick={pdf.retry}>Retry document indexing</button>}
         {!!pdf.status?.documents.length && <button className="ls-chip" onClick={pdf.clear}>Clear document text</button>}
         {diagnostics.length > 0 && <button className="ls-chip" onClick={() => setShowDiagnostics((value) => !value)}>{showDiagnostics ? 'Hide' : 'Show'} diagnostics</button>}
       </div>
       <p role="status">{!index.accountId || !verifiedGeneration || verifiedGeneration !== index.generation ? 'LEARN and document search require a verified login.' : pdf.message || (onLearn ? 'Document text will be indexed after your LEARN session is checked.' : 'Saved document text is searchable. Open LEARN to index more documents.')}{pdf.status ? ` · ${pdf.status.documents.length} documents · ${(pdf.status.chars * 2 / (1024 * 1024)).toFixed(1)} MB text (approx.)` : ''}</p>
+      {pdf.status && !pdf.status.ocrAvailable && <p>Handwriting models are not installed in this build. Printed PDF and Office text remain searchable.</p>}
+      {pdf.status?.ocrAvailable && <p>Handwriting joins normal searches automatically. OCR can misread words and symbols; verify matches on the PDF page. Scanning processes up to 8 small region batches each time Spotlight opens, including handwritten additions on printed pages.</p>}
+      {pdf.status?.documents.filter(document => document.ocr).map(document => <p key={document.id}>{index.resources.find(resource => resource.id === document.id)?.title}: handwriting {document.ocr.scannedPages || 0} of {document.ocr.totalPages || document.totalPages} pages scanned{document.ocr.partial ? ' · some regions omitted' : ''}{document.ocr.error ? ` · ${document.ocr.error} Use Retry document indexing.` : ''}</p>)}
       {showDiagnostics && <textarea className="ls-diagnostics" aria-label="Connection diagnostics — copy to share" readOnly value={JSON.stringify({ adapter: 'browser-session-v2', events: diagnostics }, null, 2)} />}
     </div>
   );
@@ -254,6 +258,7 @@ export function LearnSpotlight(props) {
     && (!pdfFilters.notesSection || notesSection(resource) === pdfFilters.notesSection)
     && (!pdfFilters.instructor || index.pdfLabels?.[notesSection(resource)] === pdfFilters.instructor)) : [];
   const covered = coveragePdfs.filter(resource => pdf.status?.documents.some(document => document.id === resource.id));
+  const handwritingDocuments = covered.filter(resource => resource.type === 'PDF').map(resource => pdf.status.documents.find(document => document.id === resource.id));
   const combined = React.useMemo(() => associateCourses(learnSearchReady ? index.courses.filter(course => accessibleCourses.includes(course.id)) : [], piazza.index.courses,
     [...(learnSearchReady ? index.resources.filter(resource => accessibleCourses.includes(resource.courseId)) : []).map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...(learnSearchReady ? (index.siteResources || []).filter(resource => accessibleCourses.includes(resource.courseId)) : []), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey, learnSearchReady, accessibleCourses]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
@@ -273,6 +278,7 @@ export function LearnSpotlight(props) {
       </div>
       {sites.prompt}{sites.status}
       {pdf.status && coveragePdfs.length > covered.length && <p className="ls-coverage" role="status">Document contents searched: {covered.length} of {coveragePdfs.length} in this scope. Some contents aren’t indexed yet; document titles remain searchable.</p>}
+      {pdf.status?.ocrAvailable && handwritingDocuments.length > 0 && <p className="ls-coverage" role="status">Handwriting search is experimental: {handwritingDocuments.reduce((sum, document) => sum + (document.ocr?.scannedPages || 0), 0)} of {handwritingDocuments.reduce((sum, document) => sum + document.totalPages, 0)} PDF pages scanned. Saved OCR text joins normal results; unscanned or misread handwriting may be missing.</p>}
       {covered.some(resource => pdf.status?.documents.some(document => document.id === resource.id && (document.partial || document.emptyPages))) && <p className="ls-coverage" role="status">Some indexed documents have unreadable or omitted pages, so their content search is incomplete.</p>}
       {learnSearchReady && (index.courseSites || []).some(site => site.enabled && site.partial && (!pdfFilters.courseId || site.courseId === pdfFilters.courseId)) && (!pdfFilters.source || pdfFilters.source === 'Website') && <p className="ls-coverage" role="status">Course website coverage is partial; some pages may be missing from search.</p>}
       <details className="ls-settings" aria-label="Search settings"><summary>Settings</summary>

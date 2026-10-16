@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Learn Spotlight",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Search course resources using your signed-in Waterloo LEARN session.",
   "permissions": [
     "activeTab",

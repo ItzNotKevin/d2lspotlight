@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.8.0 adds experimental local handwriting indexing to normal search.** With local OCR models installed, PDFs are scanned in page batches, including handwritten additions on printed pages. OCR matches show a warning and open the original physical PDF page. Pause scanning under Settings; saved matches remain searchable. See [OCR setup and evaluation](OCR_EVALUATION.md). The normal build automatically prepares and verifies the OCR models; no separate setup command is needed. The first uncached build downloads about 389 MiB.
+
 **v0.7.0 adds PowerPoint and Word content search:** `.pptx` slide text and `.docx` body/table text share the local PDF cache, course/section/instructor filters, course pins, and retry controls. Matches show a slide number or paragraph range and open the original LEARN viewer. Under Settings → LEARN and documents, use Refresh courses to discover files, then select the courses to index. Existing PDFs remain cached. Older `.ppt`/`.doc` files remain searchable by title. See [Office document search](DOCUMENT_CONTENT_SEARCH.md) for coverage and limits.
 
 **v0.6.2 improves PDF cache management:** pin courses under Settings to protect existing text. When space runs out, the least recently opened/indexed unpinned text is replaced automatically. Index this course restores its missing text without clearing other courses up front, and per-course coverage distinguishes pending, failed and replaced files.

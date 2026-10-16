@@ -1,0 +1,20 @@
+{
+  "output": "benchmark-results/ocr-example.json",
+  "samples": [
+    {
+      "id": "handwritten-heading",
+      "image": "../benchmark-assets/ocr-samples/notes.png",
+      "crop": [0.1, 0.1, 0.9, 0.2],
+      "preprocess": "threshold",
+      "expected": ["parametric", "curves"]
+    },
+    {
+      "id": "full-page-control",
+      "image": "../benchmark-assets/ocr-samples/notes.png",
+      "preprocess": "threshold",
+      "segment": "ink-bands",
+      "absent": ["summation"],
+      "expected": ["parametric", "curves"]
+    }
+  ]
+}
