@@ -1,6 +1,7 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { MAX_PDF_BYTES, extractDocumentText } from './core.js';
 import { extractOffice } from '../office/core.js';
+import { scanPdfPage, cancelOcr } from '../ocr/offscreen.js';
 
 GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('dist/pdf.worker.mjs');
 const tasks = new Map();
@@ -35,6 +36,7 @@ export async function extractPdf(base64, id) {
   }
 }
 export function cancelPdf(id) {
+  cancelOcr(id);
   officeTasks.get(id)?.abort();
   officeTasks.delete(id);
   const task = tasks.get(id);
@@ -45,8 +47,8 @@ export function cancelPdf(id) {
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.target !== 'pdf-offscreen' || sender.id !== chrome.runtime.id || sender.tab) return;
   if (message.action === 'cancel') { cancelPdf(message.id); reply({ ok: true }); return; }
-  if (message.action !== 'extract') return;
-  (message.format && message.format !== 'PDF' ? extractOfficeFile(message.bytes, message.id, message.format) : extractPdf(message.bytes, message.id)).then(document => reply({ ok: true, document }),
-    () => reply({ ok: false, error: 'Document could not be read (encrypted, damaged, cancelled, unsupported, or extraction limit reached).' }));
+  if (!['extract', 'ocr'].includes(message.action)) return;
+  (message.action === 'ocr' ? scanPdfPage(message.bytes, message.page, message.id, message.regionOffset) : message.format && message.format !== 'PDF' ? extractOfficeFile(message.bytes, message.id, message.format) : extractPdf(message.bytes, message.id)).then(document => reply({ ok: true, document }),
+    error => reply({ ok: false, error: message.action === 'ocr' ? error.message : 'Document could not be read (encrypted, damaged, cancelled, unsupported, or extraction limit reached).' }));
   return true;
 });

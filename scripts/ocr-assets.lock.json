@@ -1,0 +1,73 @@
+{
+  "version": "handwriting-v1",
+  "models": [
+    {
+      "role": "handwriting",
+      "id": "Xenova/trocr-small-handwritten",
+      "revision": "2432e24d184b1d964d07ed04f5d9e21d31a59141"
+    },
+    {
+      "role": "math",
+      "id": "onnx-community/TexTeller3-ONNX",
+      "revision": "ed90c6164810242882ca90863bb85697a76f4841"
+    }
+  ],
+  "files": {
+    "Xenova/trocr-small-handwritten/config.json": {
+      "sha256": "ab388d889bdead2a554fc77ae4899caabdb279318e660b457afd29394e8ee43d",
+      "bytes": 4515
+    },
+    "Xenova/trocr-small-handwritten/generation_config.json": {
+      "sha256": "cce308da91e0d656e07404c70d4b9c9f5839d426f679eff6fda6dcc0e727e3b6",
+      "bytes": 185
+    },
+    "Xenova/trocr-small-handwritten/onnx/decoder_model_merged_quantized.onnx": {
+      "sha256": "51076aa396ab5939c4668db9de901ad51765094b4c05c4c8c1f8ae2012ba1e08",
+      "bytes": 40527613
+    },
+    "Xenova/trocr-small-handwritten/onnx/encoder_model_quantized.onnx": {
+      "sha256": "2f29edbd925f8a49c9c7d1349895f960cf09d2efdc76fe23f957048d476e0d03",
+      "bytes": 23082942
+    },
+    "Xenova/trocr-small-handwritten/preprocessor_config.json": {
+      "sha256": "70da3434c33eedb3b56caf4067851741dfeed02f67576dcc3c6407c2533bfaf0",
+      "bytes": 465
+    },
+    "Xenova/trocr-small-handwritten/tokenizer.json": {
+      "sha256": "68bcb5468c854362a615f3d2ff6a5e4091a85f4c8198993ed9a30afe0b143737",
+      "bytes": 4494727
+    },
+    "Xenova/trocr-small-handwritten/tokenizer_config.json": {
+      "sha256": "ce50304582ca15b925982e96dfe56548ddbaba89b584e73176d6bb3a5a0b4713",
+      "bytes": 471
+    },
+    "onnx-community/TexTeller3-ONNX/config.json": {
+      "sha256": "d94417e62061a944f002c9d838ef5428df99fca2b8b54b089e30a1d5964cab65",
+      "bytes": 4667
+    },
+    "onnx-community/TexTeller3-ONNX/generation_config.json": {
+      "sha256": "6bf3790b65ff35b3f2e745c4ea71d236e3a44e23af5fb6ed3003a814871b22f1",
+      "bytes": 132
+    },
+    "onnx-community/TexTeller3-ONNX/onnx/decoder_model_merged_quantized.onnx": {
+      "sha256": "1e26574671fdbff033c1e213b23a4ad2f9afef24e1b227709fd6daf3ccd67aa1",
+      "bytes": 229140257
+    },
+    "onnx-community/TexTeller3-ONNX/onnx/encoder_model_quantized.onnx": {
+      "sha256": "cccb5b13753a96ac2ab1f1d806e81571b32153d682c8ee9824b9ac64e0587194",
+      "bytes": 88188728
+    },
+    "onnx-community/TexTeller3-ONNX/preprocessor_config.json": {
+      "sha256": "9e30687f05b936e9f74915206a5425d0a19517910514bca7b348e619d7ec9349",
+      "bytes": 352
+    },
+    "onnx-community/TexTeller3-ONNX/tokenizer.json": {
+      "sha256": "ec4ca954798a092faf6fefcfa47fb5f85d76cdf6ab170b624ae1a683d53dae14",
+      "bytes": 1370259
+    },
+    "onnx-community/TexTeller3-ONNX/tokenizer_config.json": {
+      "sha256": "74c8bdcd769acae371f98980fe929be1172fab3df844a50159c61998a3832eea",
+      "bytes": 592769
+    }
+  }
+}

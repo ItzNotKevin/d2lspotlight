@@ -9,8 +9,11 @@ import { searchPdfFixture } from '../tests/fixtures/search-pdf.js';
 // A disposable fixture extension grants access only to an intercepted LEARN origin.
 // No request reaches LEARN and no existing browser profile is used.
 const temporary = await mkdtemp(join(tmpdir(), 'spotlight-pdf-check-'));
+const ocrPdfBytes = process.env.SPOTLIGHT_OCR_PDF ? await readFile(process.env.SPOTLIGHT_OCR_PDF) : null;
 const extension = join(temporary, 'extension');
-for (const path of ['src', 'dist', 'background.js', 'semantic.html', 'spotlight.html']) await cp(resolve(path), join(extension, path), { recursive: true });
+for (const path of ['src', 'dist', 'background.js', 'semantic.html', 'spotlight.html']) await cp(resolve(path), join(extension, path), { recursive: true,
+  filter: source => Boolean(ocrPdfBytes) || !source.includes('/ocr-models') });
+if (!ocrPdfBytes) await writeFile(join(extension, 'dist/ocr-manifest.json'), JSON.stringify({ available: false }));
 // Expose the statically imported handler only in the disposable fixture: dynamic
 // import is disallowed in service workers, and production has no debug globals.
 await writeFile(join(extension, 'dist/background.js'), `${await readFile('dist/background.js', 'utf8')}\nimport { toggleSpotlight as fixtureToggle } from '../src/toggle.js';\nglobalThis.__spotlightToggleForTest = fixtureToggle;\n`);
@@ -20,6 +23,7 @@ const browser = spawn(process.env.SPOTLIGHT_CHROME || '/Applications/Google Chro
   ['--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-extension-debugging',
     `--user-data-dir=${join(temporary, 'profile')}`, '--remote-debugging-pipe'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
 let sequence = 0, buffered = '';
+let callTimeout = 20000;
 const pending = new Map();
 const errors = [];
 const requested = [];
@@ -31,7 +35,7 @@ let delaySecondPdf = 0;
 function call(method, params = {}, sessionId) {
   return new Promise((resolveCall, reject) => {
     const id = ++sequence;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Browser check timed out: ${method}`)); }, 20000);
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Browser check timed out: ${method}`)); }, callTimeout);
     pending.set(id, { resolve: resolveCall, reject, timer });
     browser.stdio[3].write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
   });
@@ -127,6 +131,7 @@ try {
   const { sessionId: background } = await call('Target.attachToTarget', { targetId: target.targetId, flatten: true });
   await call('Runtime.enable', {}, background);
   await until(() => evaluate(background, "typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id)"), Boolean, 'Extension worker context must initialize');
+  await evaluate(background, "chrome.storage.local.set({ handwritingIndexingEnabled: false })");
   assert.equal(await evaluate(page, "Boolean(document.getElementById('learn-spotlight-root'))"), false, 'Automatic shortcut installation must not open the overlay');
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'K', code: 'KeyK', modifiers: 12, windowsVirtualKeyCode: 75 }, page);
@@ -140,6 +145,80 @@ try {
   assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true, 'A duplicate command must not close a locally opened overlay');
   await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 documents'), 'Automatic PDF indexing must finish');
   assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), false, 'Maintenance settings must start collapsed');
+  async function checkRealOcr(sourceUrl) {
+    callTimeout = 240000;
+    const payload = await evaluate(background, `(async () => {
+      const key = 'learnSpotlightIndexV1', index = (await chrome.storage.local.get(key))[key];
+      const resource = { id: 'real-ocr-pdf', title: 'Annotated week 5', type: 'PDF', course: 'CS246', courseId: '246', path: 'Lecture notes', pdfUrl: '${origin}/content/ocr-notes.pdf', url: '${origin}/d2l/le/content/246/viewContent/999/View' };
+      await chrome.storage.local.set({ [key]: { ...index, resources: [...index.resources, resource] } });
+      return { resourceId: resource.id, revision: JSON.stringify([resource.pdfUrl, resource.modifiedAt]), accountId: index.accountId, generation: index.generation };
+    })()`);
+    async function sourceMessage(message) {
+      return evaluate(background, `(async () => {
+        const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${sourceUrl}');
+        return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: payload => chrome.runtime.sendMessage(payload), args: [${JSON.stringify(message)}] }))[0].result;
+      })()`);
+    }
+    const bytes = Buffer.from(ocrPdfBytes).toString('base64');
+    const native = await sourceMessage({ type: 'pdf-index', action: 'extract', requestId: 'real-ocr-native', ...payload, bytes });
+    assert.equal(native.ok, true, JSON.stringify(native));
+    // Resume fixture: pages 1–4 are treated as previously scanned. The real
+    // offscreen worker must render and recognize physical page 5 on this run.
+    await evaluate(background, `(async () => {
+      const db = await new Promise(resolve => { const request = indexedDB.open('spotlight-pdf-v1', 1); request.onsuccess = () => resolve(request.result); });
+      await new Promise(resolve => { const tx = db.transaction('documents', 'readwrite'), store = tx.objectStore('documents'); const request = store.get('real-ocr-pdf'); request.onsuccess = () => store.put({ ...request.result, ocr: { version: 'handwriting-v1', nextPage: 5, scannedPages: 4, totalPages: 38 } }); tx.oncomplete = resolve; }); db.close();
+    })()`);
+    console.log('Testing real PDF handwriting in Chrome; models run locally.');
+    let lastStage = '';
+    const progressTimer = setInterval(async () => {
+      try { const value = await evaluate(background, "chrome.storage.session.get('spotlightOcrStage')");
+        const stage = value.spotlightOcrStage?.stage; if (stage && stage !== lastStage) { console.log('OCR: ' + stage); lastStage = stage; }
+      } catch {}
+    }, 10000);
+    let scanned;
+    try {
+      for (let batch = 0; batch < 6; batch++) {
+        scanned = await sourceMessage({ type: 'pdf-index', action: 'ocr', requestId: 'real-ocr-scan-' + batch, ...payload, bytes });
+        if (!scanned.ok || scanned.document.ocr.nextPage === 6) break;
+        console.log('Saved OCR region batch: ' + scanned.document.ocr.regionOffset);
+        const checkpoint = await sourceMessage({ type: 'pdf-index', action: 'search', query: 'recall', filters: { courseId: '246' } });
+        if (checkpoint.matches.some(match => match.resourceId === 'real-ocr-pdf' && match.pdfPage === 5 && match.ocrMatch)) break;
+      }
+    }
+    finally { clearInterval(progressTimer); }
+    assert.equal(scanned.ok, true, JSON.stringify(scanned));
+    assert.ok(scanned.document.ocr.nextPage === 6 || scanned.document.ocr.regionOffset > 0, 'OCR must save page or region resume progress');
+    const results = await sourceMessage({ type: 'pdf-index', action: 'search', query: 'recall', filters: { courseId: '246' } });
+    const handwriting = results.matches.find(match => match.resourceId === 'real-ocr-pdf' && match.pdfPage === 5 && match.ocrMatch);
+    assert.ok(handwriting, 'Ordinary search must include handwritten Recall from physical page 5');
+    assert.match(handwriting.url, /#page=5$/);
+    await evaluate(background, `(async () => {
+      const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${sourceUrl}');
+      const open = (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.getElementById('learn-spotlight-root')?.isSpotlightOpen() }))[0].result;
+      if (!open) await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['dist/spotlight.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => { window.open = url => { window.__ocrOpened = url; }; } });
+    })()`);
+    const sourceTarget = (await call('Target.getTargets')).targetInfos.find(target => target.url === sourceUrl);
+    const { sessionId: searchPage } = await call('Target.attachToTarget', { targetId: sourceTarget.targetId, flatten: true });
+    await call('Runtime.enable', {}, searchPage);
+    await evaluate(searchPage, `(() => {
+      const input = ${root}.querySelector('input[type=search]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'cs246 recall');
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    })()`);
+    await until(() => evaluate(searchPage, `${root}.querySelector('[role=listbox]')?.textContent`), text => text?.includes('PDF page 5') && text.includes('OCR text'), 'Unified UI must display the handwriting match and its OCR label');
+    await evaluate(searchPage, `${root}.querySelector('[role=option]').click()`);
+    const opened = await evaluate(background, `(async () => {
+      const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${sourceUrl}');
+      return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.__ocrOpened }))[0].result;
+    })()`);
+    assert.match(opened, /#page=5$/, 'Selecting the ordinary result must open physical PDF page 5');
+    console.log('Real PDF OCR cache, normal search, resume progress, and page-5 URL passed.');
+  }
+  if (process.env.SPOTLIGHT_OCR_ONLY) {
+    await checkRealOcr(origin + '/');
+    assert.equal(errors.length, 0, JSON.stringify(errors));
+  } else {
   async function closeAndReopen() {
     await evaluate(background, `(async () => {
       const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
@@ -473,11 +552,13 @@ try {
   assert.match(officeOpened, /\/d2l\/le\/content\/246\/viewContent\/246[12]\/View$/);
   assert.ok(requested.some(url => url.includes('/246/content/topics/2461/file?stream=true')), 'PowerPoint must use its streaming topic endpoint');
   assert.ok(requested.some(url => url.includes('/246/notes.docx')), 'Word must use the supplied course content URL');
+  if (ocrPdfBytes) await checkRealOcr(`${origin}/office-fixture`);
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
     courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
+  }
 } finally {
   browser.kill();
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('Browser check closed.')); }

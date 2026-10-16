@@ -140,7 +140,7 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.source && <span>{resource.source}</span>}
           {resource.service && <span>{resource.service}</span>}
           {resource.directLink && <span>Opens directly</span>}
-          {resource.pdfMatch && <span>{documentLocation(resource)}{resource.pdfPartial ? ' · partial index' : ''}</span>}
+          {resource.pdfMatch && <span>{documentLocation(resource)}{resource.ocrMatch ? ' · OCR text' : ''}{resource.pdfPartial ? ' · partial index' : ''}</span>}
           {resource.websiteSection && <span>Website section</span>}
           {resource.websiteReference && <span title="Linked from the course site; destination contents have not been indexed.">Linked reference</span>}
           {resource.instructor && <span>{resource.instructor}</span>}

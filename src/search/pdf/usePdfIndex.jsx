@@ -4,6 +4,7 @@ import { indexMessage } from '../../learn/cache.js';
 import { downloadDocument, encodePdf, MAX_DOCUMENTS, pdfRevision, notesSection } from './core.js';
 import { documentDownloadUrl, isSearchableDocument } from '../documents.js';
 import { shouldIndexPdf } from './retention.js';
+import { OCR_BATCHES_PER_SESSION, OCR_VERSION } from '../ocr/config.js';
 
 export async function pdfMessage(action, payload = {}) {
   const response = await chrome.runtime.sendMessage({ type: 'pdf-index', action, ...payload });
@@ -14,6 +15,7 @@ export async function pdfMessage(action, payload = {}) {
 export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
   const [enabled, setEnabled] = useState(true);
   const [ready, setReady] = useState(false);
+  const [handwriting, setHandwriting] = useState(true);
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState(null);
   const [revision, setRevision] = useState(0);
@@ -64,12 +66,13 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
   }
   useEffect(() => {
     let active = true;
-    chrome.storage.local.get('pdfContentSearchEnabled').then(saved => {
-      if (active) { setEnabled(saved.pdfContentSearchEnabled !== false); setReady(true); }
+    chrome.storage.local.get(['pdfContentSearchEnabled', 'handwritingIndexingEnabled']).then(saved => {
+      if (active) { setEnabled(saved.pdfContentSearchEnabled !== false); setHandwriting(saved.handwritingIndexingEnabled !== false); setReady(true); }
     }).catch(() => { if (active) setReady(true); });
     const unsubscribe = subscribeStorageChanges((changes, area) => {
       if (area === 'local' && (changes.pdfCacheRevision || changes.pdfProgressRevision)) setRevision(value => value + 1);
       if (area === 'local' && changes.pdfContentSearchEnabled) setEnabled(changes.pdfContentSearchEnabled.newValue !== false);
+      if (area === 'local' && changes.handwritingIndexingEnabled) setHandwriting(changes.handwritingIndexingEnabled.newValue !== false);
     });
     return () => { active = false; unsubscribe(); };
   }, []);
@@ -137,7 +140,37 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
         } finally { requestId = null; }
       }
       abort.signal.throwIfAborted();
-      const final = await pdfMessage('status');
+      let final = await pdfMessage('status');
+      let scanned = 0;
+      if (handwriting && final.ocrAvailable) {
+        for (const resource of candidates.filter(resource => resource.type === 'PDF')) {
+          let saved = final.documents.find(document => document.id === resource.id);
+          if (!saved || (saved.ocr?.error && !target)) continue;
+          let bytes;
+          while (scanned < OCR_BATCHES_PER_SESSION && !(saved.ocr?.version === OCR_VERSION && saved.ocr.complete)) {
+            abort.signal.throwIfAborted();
+            requestId = crypto.randomUUID();
+            setCurrentResource(resource.id);
+            const page = saved.ocr?.version === OCR_VERSION ? saved.ocr.nextPage : 1;
+            setMessage(`Scanning handwriting · ${resource.title} · PDF page ${page} of ${saved.pages} · region ${(saved.ocr?.regionOffset || 0) + 1}. Saved text stays searchable; scanning resumes when reopened.`);
+            try {
+              bytes ||= encodePdf(await downloadDocument(resource, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]) }));
+              const result = await pdfMessage('ocr', { requestId, resourceId: resource.id, revision: pdfRevision(resource), accountId: index.accountId, generation: index.generation, bytes });
+              abort.signal.throwIfAborted();
+              saved = result.document; scanned++;
+              setRevision(value => value + 1);
+            } catch (error) {
+              abort.signal.throwIfAborted();
+              warning = error.message;
+              await pdfMessage('ocr-error', { resourceId: resource.id, revision: pdfRevision(resource), accountId: index.accountId, generation: index.generation, error: error.message });
+              break;
+            } finally { requestId = null; }
+          }
+          if (scanned >= OCR_BATCHES_PER_SESSION) break;
+        }
+        final = await pdfMessage('status');
+        abort.signal.throwIfAborted();
+      }
       abort.signal.throwIfAborted();
       setStatus(final);
       const indexed = final.documents.filter(document => candidates.some(resource => resource.id === document.id)).length;
@@ -151,7 +184,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
         try { pdfMessage('cancel', { requestId }).catch(() => {}); } catch {}
       }
     };
-  }, [ready, enabled, isOpen, index, verifiedGeneration, scope, retry, selectedCourses, preferencesReady, preferenceKey]);
+  }, [ready, enabled, handwriting, isOpen, index, verifiedGeneration, scope, retry, selectedCourses, preferencesReady, preferenceKey]);
 
   function toggle() {
     const next = !enabled;
@@ -178,6 +211,6 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       setMessage('Indexing the selected course. Pinned document text will be kept when making space.');
     } catch (error) { setMessage(error.message); }
   }
-  return { enabled, toggle, clear, retry: id => { retryTarget.current = typeof id === 'string' ? id : '*'; setRetry(value => value + 1); }, message, status, revision,
+  return { enabled, toggle, clear, handwriting, toggleHandwriting: () => { const next = !handwriting; setHandwriting(next); chrome.storage.local.set({ handwritingIndexingEnabled: next }).catch(() => {}); }, retry: id => { retryTarget.current = typeof id === 'string' ? id : '*'; setRetry(value => value + 1); }, message, status, revision,
     selectedCourses, selectCourses, pinnedCourses, pinCourse, failures, currentResource, prioritize };
 }

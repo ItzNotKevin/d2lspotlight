@@ -8,6 +8,13 @@ import { isSearchSender } from '../../message-sender.js';
 import { PDF_PROGRESS_KEY, reconcilePdfProgress, updatePdfProgress } from './progress.js';
 import { planPdfRetention } from './retention.js';
 import { documentFormat, documentDownloadUrl, isSearchableDocument } from '../documents.js';
+import { OCR_VERSION } from '../ocr/config.js';
+import { applyOcrPage, nextOcrPage, nextOcrRegion } from '../ocr/cache.js';
+let ocrAvailability;
+async function ocrAvailable() {
+  ocrAvailability ||= fetch(chrome.runtime.getURL('dist/ocr-manifest.json')).then(response => response.json()).then(value => value.available && value.version === OCR_VERSION).catch(() => false);
+  return ocrAvailability;
+}
 
 let queue = Promise.resolve();
 const active = new Map();
@@ -38,8 +45,8 @@ export async function pdfStatus(cache, index) {
   const stale = all.filter(document => !currentDocument(document, index));
   if (stale.length) await cache.remove(stale.map(document => document.id));
   const documents = all.filter(document => currentDocument(document, index));
-  return { ok: true, documents: documents.map(({ id, revision, pages, chars, totalPages, partial, emptyPages }) =>
-    ({ id, revision, pages: pages.length, chars, totalPages, partial, emptyPages })),
+  return { ok: true, documents: documents.map(({ id, revision, pages, chars, totalPages, partial, emptyPages, ocr }) =>
+    ({ id, revision, pages: pages.length, chars, totalPages, partial, emptyPages, ocr })),
     chars: documents.reduce((sum, document) => sum + document.chars, 0), limit: MAX_CACHE_CHARS };
 }
 
@@ -55,6 +62,7 @@ export async function searchPdfCache(cache, index, query, filters = {}) {
       matches.push({ ...resource, id: `${resource.id}:page:${evidence.page}`, resourceId: resource.id,
         url: documentFormat(resource) === 'PDF' ? pdfPageUrl(resource, evidence.page) : resource.url, parentUrl: resource.url, pdfMatch: true,
         documentLocation: evidence.location,
+        ocrMatch: evidence.ocrMatch,
         pdfPage: evidence.page, snippet: evidence.snippet, pdfScore: evidence.score, pdfPhraseMatch: evidence.phraseMatch, pdfPartial: document.partial });
     }
   }
@@ -63,6 +71,10 @@ export async function searchPdfCache(cache, index, query, filters = {}) {
 
 export function registerPdfSearch() {
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
+    if (message?.type === 'ocr-stage' && sender.id === chrome.runtime.id && !sender.tab && sender.url === chrome.runtime.getURL('semantic.html')) {
+      if (active.has(message.id)) chrome.storage.session.set({ spotlightOcrStage: { stage: String(message.stage).slice(0, 80) } }).catch(() => {});
+      reply({ ok: true }); return;
+    }
     if (message?.type !== 'pdf-index' || !isSearchSender(sender, chrome.runtime.id)) return;
     const id = `${sender.tab?.id ?? 'standalone'}:${String(message.requestId || '').slice(0, 100)}`;
     let onLearn = false;
@@ -75,7 +87,7 @@ export function registerPdfSearch() {
         const saved = (await chrome.storage.local.get(PDF_PROGRESS_KEY))[PDF_PROGRESS_KEY];
         const progress = reconcilePdfProgress(saved, index, status.documents);
         if (JSON.stringify(saved) !== JSON.stringify(progress)) await chrome.storage.local.set({ [PDF_PROGRESS_KEY]: progress });
-        return { ...status, progress: progress.entries };
+        return { ...status, progress: progress.entries, ocrAvailable: await ocrAvailable() };
       });
       if (message.action === 'progress' && onLearn) return withCache(async cache => {
         const index = await indexSnapshot();
@@ -107,27 +119,46 @@ export function registerPdfSearch() {
         await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
         return pdfStatus(cache, index);
       });
-      if (message.action !== 'extract' || !onLearn) throw new Error('Index documents from a signed-in LEARN tab.');
+      if (!['extract', 'ocr', 'ocr-error'].includes(message.action) || !onLearn) throw new Error('Index documents from a signed-in LEARN tab.');
       const before = await indexSnapshot();
       const resource = before.resources.find(resource => resource.id === message.resourceId && isSearchableDocument(resource) && documentDownloadUrl(resource));
       if (!resource || before.accountId !== message.accountId || before.generation !== message.generation || (message.revision && message.revision !== pdfRevision(resource))) throw new Error('LEARN data changed. Reopen Spotlight.');
+      const isOcr = message.action !== 'extract';
+      if (isOcr && (resource.type !== 'PDF' || message.revision !== pdfRevision(resource))) throw new Error('Choose a current PDF for handwriting scanning.');
+      if (message.action === 'ocr-error') return withCache(async cache => {
+        const index = await indexSnapshot();
+        if (index.accountId !== before.accountId || index.generation !== before.generation) throw new Error('LEARN data changed.');
+        const document = (await cache.all()).find(doc => doc.id === resource.id && currentDocument(doc, index));
+        if (document) await cache.put({ ...document, ocr: { ...document.ocr, error: String(message.error || 'Handwriting scan failed.').slice(0, 200) } });
+        await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
+        return { ok: true };
+      });
+      let cached;
+      if (isOcr) {
+        if (!await ocrAvailable()) throw new Error('Local handwriting models are not installed.');
+        cached = await withCache(async cache => (await cache.all()).find(doc => doc.id === resource.id && currentDocument(doc, before)));
+        if (!cached || nextOcrPage(cached) > cached.pages.length) throw new Error('No remaining handwriting pages.');
+      }
       if (active.size >= 2 || active.has(id)) throw new Error('Document indexing is busy in another tab. Retry shortly.');
       active.set(id, true);
       try {
         await ensureDocument();
         if (!active.has(id)) throw new Error('Document indexing cancelled.');
-        const response = await chrome.runtime.sendMessage({ target: 'pdf-offscreen', action: 'extract', id, bytes: message.bytes, format: documentFormat(resource) });
+        const response = await chrome.runtime.sendMessage({ target: 'pdf-offscreen', action: isOcr ? 'ocr' : 'extract', page: cached ? nextOcrPage(cached) : undefined, regionOffset: cached ? nextOcrRegion(cached) : 0, id, bytes: message.bytes, format: documentFormat(resource) });
         if (!response?.ok) throw new Error(response?.error || 'Document extraction unavailable.');
         return await withCache(async cache => {
           const after = await indexSnapshot();
           if (!active.has(id) || after.accountId !== before.accountId || after.generation !== before.generation
             || !after.resources.some(item => item.id === resource.id && pdfRevision(item) === pdfRevision(resource))) throw new Error('LEARN data changed. Reopen Spotlight.');
-          const all = (await cache.all()).filter(document => currentDocument(document, after) && document.id !== resource.id);
+          const snapshot = (await cache.all()).filter(document => currentDocument(document, after));
+          const current = snapshot.find(document => document.id === resource.id);
+          if (isOcr && (!current || nextOcrPage(current) !== nextOcrPage(cached) || nextOcrRegion(current) !== nextOcrRegion(cached))) throw new Error('Handwriting progress changed. Reopen Spotlight.');
+          const all = snapshot.filter(document => document.id !== resource.id);
           await cache.remove((await cache.all()).filter(document => !currentDocument(document, after)).map(document => document.id));
           const pinsKey = `pdfPinnedCourses:${after.accountId}`;
           const savedPins = (await chrome.storage.local.get(pinsKey))[pinsKey];
           const pins = Array.isArray(savedPins) ? savedPins : [];
-          const incoming = { ...response.document, id: resource.id, accountId: before.accountId, revision: pdfRevision(resource), indexedAt: Date.now(), lastUsedAt: Date.now() };
+          const incoming = isOcr ? applyOcrPage(current, response.document) : { ...response.document, id: resource.id, accountId: before.accountId, revision: pdfRevision(resource), indexedAt: Date.now(), lastUsedAt: Date.now() };
           const removed = planPdfRetention(all, incoming, after.resources, pins);
           if (removed.length) {
             const saved = (await chrome.storage.local.get(PDF_PROGRESS_KEY))[PDF_PROGRESS_KEY];
@@ -140,7 +171,7 @@ export function registerPdfSearch() {
           // away on the next status read because the old text is still present.
           await cache.replace(incoming, removed);
           await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
-          return { ok: true, document: { ...response.document, pages: response.document.pages.length } };
+          return { ok: true, document: { ...incoming, pages: incoming.pages.length } };
         });
       } finally { active.delete(id); }
     })().then(reply, error => reply({ ok: false, error: error.message || 'Document search unavailable.' }));
