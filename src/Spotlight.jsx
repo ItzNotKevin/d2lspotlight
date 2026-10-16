@@ -11,6 +11,7 @@ import { usePdfSearch } from './search/pdf/usePdfSearch.jsx';
 import { mergePdfResults } from './search/pdf/core.js';
 import { filterResources } from './learn/search.js';
 import { matchingSnippet } from './search/snippet.js';
+import { isSearchableDocument, documentLocation } from './search/documents.js';
 import { matchExplanation } from './search/relevance.js';
 
 const EMPTY_HISTORY = {};
@@ -139,7 +140,7 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
           {resource.source && <span>{resource.source}</span>}
           {resource.service && <span>{resource.service}</span>}
           {resource.directLink && <span>Opens directly</span>}
-          {resource.pdfMatch && <span>PDF page {resource.pdfPage}{resource.pdfPartial ? ' · partial index' : ''}</span>}
+          {resource.pdfMatch && <span>{documentLocation(resource)}{resource.pdfPartial ? ' · partial index' : ''}</span>}
           {resource.websiteSection && <span>Website section</span>}
           {resource.websiteReference && <span title="Linked from the course site; destination contents have not been indexed.">Linked reference</span>}
           {resource.instructor && <span>{resource.instructor}</span>}
@@ -222,7 +223,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const filters = useMemo(() => ({ courseId, source, documents, recent, notesSection, instructor }), [courseId, source, documents, recent, notesSection, instructor]);
   const pdf = usePdfSearch({ isOpen: isOpen && pdfSearchEnabled && !demo && remoteResults === null, query: searchValue, filters, resources, revision: pdfRevision, history });
   useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
-  const scopedPdfs = useMemo(() => filterResources(resources, { courseId, source }).filter(resource => resource.type === 'PDF'), [resources, courseId, source]);
+  const scopedPdfs = useMemo(() => filterResources(resources, { courseId, source }).filter(resource => isSearchableDocument(resource)), [resources, courseId, source]);
   const sections = [...new Map(scopedPdfs.filter(resource => resource.notesSection).map(resource => [resource.notesSection, resource])).values()];
   const instructors = [...new Set(scopedPdfs.map(resource => resource.instructor).filter(Boolean))].sort();
   useEffect(() => {

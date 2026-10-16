@@ -1,5 +1,7 @@
 # Learn Spotlight
 
+**v0.7.0 adds PowerPoint and Word content search:** `.pptx` slide text and `.docx` body/table text share the local PDF cache, course/section/instructor filters, course pins, and retry controls. Matches show a slide number or paragraph range and open the original LEARN viewer. Under Settings → LEARN and documents, use Refresh courses to discover files, then select the courses to index. Existing PDFs remain cached. Older `.ppt`/`.doc` files remain searchable by title. See [Office document search](DOCUMENT_CONTENT_SEARCH.md) for coverage and limits.
+
 **v0.6.2 improves PDF cache management:** pin courses under Settings to protect existing text. When space runs out, the least recently opened/indexed unpinned text is replaced automatically. Index this course restores its missing text without clearing other courses up front, and per-course coverage distinguishes pending, failed and replaced files.
 
 **v0.6.1 saves PDF indexing progress and failures:** unfinished files resume in the selected scope when Spotlight is reopened on signed-in LEARN, completed PDFs stay cached, and failed files keep their error and retry control instead of downloading again automatically.

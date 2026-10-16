@@ -1,5 +1,7 @@
 # PDF content search — v0.4.0
 
+Current version: v0.7.0 also indexes modern PowerPoint and Word files using this cache. Controls now appear under Settings → LEARN and documents. See [Office document search](DOCUMENT_CONTENT_SEARCH.md) for supported content, shared limits, and slide/paragraph opening behavior. Exact titles and assignment identities keep priority when PDF and metadata results are combined.
+
 Spotlight searches selectable text inside LEARN PDFs. `permutation` or `stat230 permutation notes` can find a generic `week_02.pdf`, show the matching passage and physical PDF page, and open the PDF with `#page=2`. PDF matches appear before metadata/meaning suggestions, with up to three pages per document and fifty page matches total. Queries run locally without LEARN requests or a semantic model.
 
 ## Try it

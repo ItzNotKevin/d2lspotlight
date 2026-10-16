@@ -7,6 +7,7 @@ import { studyWeight } from '../relevance.js';
 import { isSearchSender } from '../../message-sender.js';
 import { PDF_PROGRESS_KEY, reconcilePdfProgress, updatePdfProgress } from './progress.js';
 import { planPdfRetention } from './retention.js';
+import { documentFormat, documentDownloadUrl, isSearchableDocument } from '../documents.js';
 
 let queue = Promise.resolve();
 const active = new Map();
@@ -52,7 +53,8 @@ export async function searchPdfCache(cache, index, query, filters = {}) {
     if (!resource || !currentDocument(document, index)) continue;
     for (const evidence of searchPdfPages(resource, document.pages, query)) {
       matches.push({ ...resource, id: `${resource.id}:page:${evidence.page}`, resourceId: resource.id,
-        url: pdfPageUrl(resource, evidence.page), parentUrl: resource.url, pdfMatch: true,
+        url: documentFormat(resource) === 'PDF' ? pdfPageUrl(resource, evidence.page) : resource.url, parentUrl: resource.url, pdfMatch: true,
+        documentLocation: evidence.location,
         pdfPage: evidence.page, snippet: evidence.snippet, pdfScore: evidence.score, pdfPhraseMatch: evidence.phraseMatch, pdfPartial: document.partial });
     }
   }
@@ -105,17 +107,17 @@ export function registerPdfSearch() {
         await chrome.storage.local.set({ pdfCacheRevision: crypto.randomUUID() });
         return pdfStatus(cache, index);
       });
-      if (message.action !== 'extract' || !onLearn) throw new Error('Index PDFs from a signed-in LEARN tab.');
+      if (message.action !== 'extract' || !onLearn) throw new Error('Index documents from a signed-in LEARN tab.');
       const before = await indexSnapshot();
-      const resource = before.resources.find(resource => resource.id === message.resourceId && resource.type === 'PDF' && resource.pdfUrl);
+      const resource = before.resources.find(resource => resource.id === message.resourceId && isSearchableDocument(resource) && documentDownloadUrl(resource));
       if (!resource || before.accountId !== message.accountId || before.generation !== message.generation || (message.revision && message.revision !== pdfRevision(resource))) throw new Error('LEARN data changed. Reopen Spotlight.');
-      if (active.size >= 2 || active.has(id)) throw new Error('PDF indexing is busy in another tab. Retry shortly.');
+      if (active.size >= 2 || active.has(id)) throw new Error('Document indexing is busy in another tab. Retry shortly.');
       active.set(id, true);
       try {
         await ensureDocument();
-        if (!active.has(id)) throw new Error('PDF indexing cancelled.');
-        const response = await chrome.runtime.sendMessage({ target: 'pdf-offscreen', action: 'extract', id, bytes: message.bytes });
-        if (!response?.ok) throw new Error(response?.error || 'PDF extraction unavailable.');
+        if (!active.has(id)) throw new Error('Document indexing cancelled.');
+        const response = await chrome.runtime.sendMessage({ target: 'pdf-offscreen', action: 'extract', id, bytes: message.bytes, format: documentFormat(resource) });
+        if (!response?.ok) throw new Error(response?.error || 'Document extraction unavailable.');
         return await withCache(async cache => {
           const after = await indexSnapshot();
           if (!active.has(id) || after.accountId !== before.accountId || after.generation !== before.generation
@@ -141,7 +143,7 @@ export function registerPdfSearch() {
           return { ok: true, document: { ...response.document, pages: response.document.pages.length } };
         });
       } finally { active.delete(id); }
-    })().then(reply, error => reply({ ok: false, error: error.message || 'PDF search unavailable.' }));
+    })().then(reply, error => reply({ ok: false, error: error.message || 'Document search unavailable.' }));
     return true;
   });
 }

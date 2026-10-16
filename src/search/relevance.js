@@ -1,3 +1,4 @@
+import { documentLocation } from './documents.js';
 import { normalizeQuery, prepareQuery } from './rank.js';
 
 const administrative = /\b(?:advising|advisors?|bios?|biographies|resumes?|careers?|office hours|schedules?|polic(?:y|ies)|syllabus|outlines?|late|deadlines?|enrollment|co op)\b/;
@@ -12,7 +13,7 @@ export function studyWeight(resource, query) {
 
 export function matchExplanation(resource, query) {
   if (!query.trim()) return '';
-  if (resource.pdfMatch) return `PDF text · page ${resource.pdfPage}`;
+  if (resource.pdfMatch) return resource.documentFormat ? `${resource.documentFormat} text · ${documentLocation(resource).toLowerCase()} · opens document` : `PDF text · page ${resource.pdfPage}`;
   if (resource.websiteReference) return 'Linked reference · destination contents not searched';
   if (resource.semanticMatch || resource.outlineWeek) return resource.outlineWeek ? 'Suggested by the course outline' : 'Related meaning';
   const words = prepareQuery(query).topics.filter(word => !/\d/.test(word));

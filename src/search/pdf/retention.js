@@ -24,6 +24,6 @@ export function planPdfRetention(documents, incoming, resources, pinnedCourses =
     count--;
     chars -= document.chars;
   }
-  if (count > maxDocuments || chars > maxChars) throw new Error('PDF text cache is full. Unpin a course or clear PDF text to make space.');
+  if (count > maxDocuments || chars > maxChars) throw new Error('Document text cache is full. Unpin a course or clear document text to make space.');
   return removed;
 }

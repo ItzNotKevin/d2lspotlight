@@ -64,7 +64,7 @@ export function createIndexStore(storage, key = CACHE_KEY) {
           history: Object.fromEntries(Object.entries(current.history).filter(([id]) => !id.startsWith('website:') || [...retained, ...documents].some(resource => resource.id === id))) };
       }
     } else if (action === 'label-notes') {
-      if (payload.accountId !== current.accountId || !current.resources.some(resource => resource.type === 'PDF' && JSON.stringify([resource.courseId, resource.path || '']) === payload.section)) throw new Error('Choose an indexed notes section.');
+      if (payload.accountId !== current.accountId || !current.resources.some(resource => ['PDF', 'DOC', 'SLIDES'].includes(resource.type) && JSON.stringify([resource.courseId, resource.path || '']) === payload.section)) throw new Error('Choose an indexed notes section.');
       const pdfLabels = { ...current.pdfLabels };
       const name = String(payload.name || '').trim().slice(0, 100);
       if (name) pdfLabels[payload.section] = name;
