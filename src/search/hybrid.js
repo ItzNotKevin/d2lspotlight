@@ -31,7 +31,7 @@ export function hybridSearch(resources, options, semanticMatches = []) {
     const course = Math.max(courseRelevance(item.resource, query), item.courseSemantic || 0);
     return { ...item, courseRelevance: course,
       priority: item.rank?.exactTitle ? 2 : exactIdentifierMatch(item.resource, query) ? 1 : 0,
-      score: (.35 * (item.rank?.relevance || 0) + .65 * item.semantic + .03 * resourcePreference(item.resource, query) + .18 * course) * studyWeight(item.resource, options.query) };
+      score: (.35 * (item.rank?.relevance || 0) + .65 * item.semantic + .03 * resourcePreference(item.resource, query) + .18 * course + (item.rank?.titlePhrase ? .15 : 0)) * studyWeight(item.resource, options.query) };
   }).sort((a, b) => compareDateIntent(a, b, query) || b.priority - a.priority || b.score - a.score || (b.rank?.score || 0) - (a.rank?.score || 0) || a.order - b.order)
     .slice(0, limit).map(({ resource, rank, outlineWeek }) => ({ ...resource,
       ...(!rank ? { semanticMatch: true } : {}), ...(outlineWeek ? { outlineWeek } : {}) }));
