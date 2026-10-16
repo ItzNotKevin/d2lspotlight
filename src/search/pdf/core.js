@@ -1,4 +1,4 @@
-import { prepareQuery, matchesQueryConstraints, normalizeQuery } from '../rank.js';
+import { prepareQuery, matchesQueryConstraints, normalizeQuery, topicPhrase, containsPhrase, rankResource } from '../rank.js';
 import { studyWeight } from '../relevance.js';
 
 export const MAX_PDF_BYTES = 12 * 1024 * 1024;
@@ -14,11 +14,23 @@ export function mergePdfResults(metadata, pages, limit = 100, query = '') {
   const matched = new Set(pages.map(page => page.resourceId));
   const combined = [...pages, ...metadata.filter(resource => !matched.has(resource.id))];
   if (query.trim()) {
-    // Do not let an incidental biography passage automatically precede every
-    // teaching result merely because it came from the PDF text pipeline.
+    const parsed = prepareQuery(query);
+    const phrase = topicPhrase(parsed);
+    const priority = resource => {
+      const rank = rankResource(resource, parsed);
+      if (rank?.exactTitle) return 4;
+      if (rank?.exactIdentifier) return 3;
+      if (phrase.split(' ').length > 1 && containsPhrase(resource.title, phrase)) return 2;
+      return resource.pdfPhraseMatch ? 1 : 0;
+    };
     const hasTeaching = combined.some(resource => studyWeight(resource, query) > 1);
     const incidental = resource => studyWeight(resource, query) < 1 && normalizeQuery(resource.title) !== normalizeQuery(query);
-    if (hasTeaching) combined.sort((a, b) => Number(incidental(a)) - Number(incidental(b)));
+    // Stable ties preserve the source rank. Explicit date ordering stays intact.
+    if (!parsed.dateOrder) {
+      const priorities = new Map(combined.map(resource => [resource, priority(resource)]));
+      combined.sort((a, b) => priorities.get(b) - priorities.get(a)
+        || (hasTeaching ? Number(incidental(a)) - Number(incidental(b)) : 0));
+    }
   }
   return combined.slice(0, limit);
 }
@@ -63,6 +75,7 @@ export function searchPdfPages(resource, pages, query, limit = 3) {
   if (!matchesQueryConstraints(resource, parsed)) return [];
   const terms = parsed.topics.filter(term => !/\d|\+|#/.test(term));
   if (!terms.length) return [];
+  const queryPhrase = topicPhrase(parsed);
   const metadata = normalizeQuery(`${resource.title} ${resource.path} ${resource.courseName} ${resource.instructor || ''}`);
   const matches = [];
   for (const { page, text } of pages) {
@@ -74,9 +87,10 @@ export function searchPdfPages(resource, pages, query, limit = 3) {
     const position = Math.max(0, text.toLowerCase().indexOf(matched[0]));
     const start = Math.max(0, position - 90);
     const snippet = `${start ? '…' : ''}${text.slice(start, start + 260)}${text.length > start + 260 ? '…' : ''}`;
-    const phrase = normalized.includes(terms.join(' '));
+    const phrase = containsPhrase(normalized, queryPhrase);
     const occurrences = matched.reduce((sum, term) => sum + Math.min(words.filter(word => word === term || word === `${term}s`).length, 10), 0);
-    matches.push({ page, snippet, score: matched.length * 20 + (phrase ? 15 : 0) + occurrences });
+    matches.push({ page, snippet, phraseMatch: phrase && queryPhrase.split(' ').length > 1,
+      score: matched.length * 20 + (phrase ? 15 : 0) + occurrences });
   }
   return matches.sort((a, b) => b.score - a.score || a.page - b.page).slice(0, limit);
 }

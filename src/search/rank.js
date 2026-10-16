@@ -68,6 +68,21 @@ export function prepareQuery(query) {
   return { text, words, topics: preferences.length ? topics : words, preferences, assignments, dateOrder, latest: dateOrder === 'desc', annotated: intent.annotated };
 }
 
+// Keep query order and repeated words for phrase matching. Course identifiers
+// and resource preferences constrain the search separately from its topic.
+export function topicPhrase(query) {
+  const parsed = typeof query === 'string' ? prepareQuery(query) : query;
+  const words = tokens(parsed.text).filter(word => !/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word)
+    && !parsed.preferences?.includes(word));
+  while (fillers.has(words[0])) words.shift();
+  while (fillers.has(words.at(-1))) words.pop();
+  return words.join(' ');
+}
+
+export function containsPhrase(text, phrase) {
+  return Boolean(phrase) && ` ${normalizeQuery(text)} `.includes(` ${phrase} `);
+}
+
 export function prepareSearchQuery(resources, query) {
   let corpus = corpora.get(resources);
   if (!corpus) {
@@ -184,8 +199,12 @@ export function rankResource(resource, query) {
   if (resource.websiteSection && exactTitle) score += 2;
   else if (query.text && data.fields[0].text.startsWith(query.text)) score += 12;
   const exactIdentifier = exactIdentifierMatch(resource, query);
+  const phrase = topicPhrase(query);
+  const titlePhrase = phrase.split(' ').length > 1 && containsPhrase(resource.title, phrase);
+  if (titlePhrase && !exactTitle) score += 18;
+  else if (phrase.split(' ').length > 1 && resource.source === 'Website' && containsPhrase(resource.contentText, phrase)) score += 8;
   return { score, fuzzy, reasons: [...reasons], relevance: topicMaximum ? topicScore / topicMaximum : 0,
-    preference: query.preferences?.length ? preferenceScore / query.preferences.length : 0, exactTitle, exactIdentifier, courseRelevance: course };
+    preference: query.preferences?.length ? preferenceScore / query.preferences.length : 0, exactTitle, titlePhrase, exactIdentifier, courseRelevance: course };
 }
 
 export function exactIdentifierMatch(resource, query) {

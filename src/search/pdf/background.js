@@ -53,7 +53,7 @@ export async function searchPdfCache(cache, index, query, filters = {}) {
     for (const evidence of searchPdfPages(resource, document.pages, query)) {
       matches.push({ ...resource, id: `${resource.id}:page:${evidence.page}`, resourceId: resource.id,
         url: pdfPageUrl(resource, evidence.page), parentUrl: resource.url, pdfMatch: true,
-        pdfPage: evidence.page, snippet: evidence.snippet, pdfScore: evidence.score, pdfPartial: document.partial });
+        pdfPage: evidence.page, snippet: evidence.snippet, pdfScore: evidence.score, pdfPhraseMatch: evidence.phraseMatch, pdfPartial: document.partial });
     }
   }
   return matches.sort((a, b) => b.pdfScore * studyWeight(b, query) - a.pdfScore * studyWeight(a, query) || a.pdfPage - b.pdfPage).slice(0, 50);
