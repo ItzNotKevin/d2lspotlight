@@ -11,7 +11,7 @@ export async function openPdfCache() {
       const transaction = db.transaction('documents', mode);
       const request = operation(transaction.objectStore('documents'));
       transaction.oncomplete = () => resolve(request?.result);
-      transaction.onabort = transaction.onerror = () => reject(transaction.error || new Error('PDF cache unavailable.'));
+      transaction.onabort = transaction.onerror = () => reject(transaction.error || new Error('Document cache unavailable.'));
     });
   }
   return {

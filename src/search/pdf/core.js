@@ -1,5 +1,6 @@
 import { prepareQuery, matchesQueryConstraints, normalizeQuery, topicPhrase, containsPhrase, rankResource } from '../rank.js';
 import { studyWeight } from '../relevance.js';
+import { documentDownloadUrl } from '../documents.js';
 
 export const MAX_PDF_BYTES = 12 * 1024 * 1024;
 export const MAX_PAGES = 400;
@@ -7,7 +8,7 @@ export const MAX_PAGE_CHARS = 30000;
 export const MAX_DOCUMENT_CHARS = 1000000;
 export const MAX_CACHE_CHARS = 8000000;
 export const MAX_DOCUMENTS = 100;
-export const pdfRevision = resource => JSON.stringify([resource.pdfUrl, resource.modifiedAt]);
+export const pdfRevision = resource => resource.documentFormat ? JSON.stringify([resource.documentUrl, resource.modifiedAt, resource.documentFormat]) : JSON.stringify([resource.pdfUrl, resource.modifiedAt]);
 export const notesSection = resource => JSON.stringify([resource.courseId, resource.path || '']);
 
 export function mergePdfResults(metadata, pages, limit = 100, query = '') {
@@ -78,7 +79,7 @@ export function searchPdfPages(resource, pages, query, limit = 3) {
   const queryPhrase = topicPhrase(parsed);
   const metadata = normalizeQuery(`${resource.title} ${resource.path} ${resource.courseName} ${resource.instructor || ''}`);
   const matches = [];
-  for (const { page, text } of pages) {
+  for (const { page, text, location } of pages) {
     const normalized = normalizeQuery(text);
     const words = normalized.split(' ');
     const contains = term => words.some(word => word === term || (term.length >= 4 && word === `${term}s`));
@@ -89,23 +90,25 @@ export function searchPdfPages(resource, pages, query, limit = 3) {
     const snippet = `${start ? '…' : ''}${text.slice(start, start + 260)}${text.length > start + 260 ? '…' : ''}`;
     const phrase = containsPhrase(normalized, queryPhrase);
     const occurrences = matched.reduce((sum, term) => sum + Math.min(words.filter(word => word === term || word === `${term}s`).length, 10), 0);
-    matches.push({ page, snippet, phraseMatch: phrase && queryPhrase.split(' ').length > 1,
+    matches.push({ page, snippet, location, phraseMatch: phrase && queryPhrase.split(' ').length > 1,
       score: matched.length * 20 + (phrase ? 15 : 0) + occurrences });
   }
   return matches.sort((a, b) => b.score - a.score || a.page - b.page).slice(0, limit);
 }
 
-export async function downloadPdf(url, { signal, fetchImpl = fetch } = {}) {
+export async function downloadPdf(url, { signal, fetchImpl = fetch, format = 'PDF' } = {}) {
   pdfPageUrl({ pdfUrl: url }, 1);
   const response = await fetchImpl(url, { credentials: 'same-origin', redirect: 'error', signal,
-    headers: { Accept: 'application/pdf' } });
+    headers: { Accept: format === 'PDF' ? 'application/pdf' : format === 'PPTX'
+      ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation, application/octet-stream'
+      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/octet-stream' } });
   if ([401, 429].includes(response.status)) throw Object.assign(new Error(response.status === 401 ? 'Sign in to LEARN to index PDFs.' : 'LEARN is limiting requests. Retry later.'), { stop: true, code: response.status === 401 ? 'SESSION' : 'RATE_LIMIT' });
-  if (!response.ok) throw new Error(`PDF unavailable (HTTP ${response.status}).`);
+  if (!response.ok) throw new Error(`${format} unavailable (HTTP ${response.status}).`);
   const type = response.headers.get('content-type') || '';
-  if (/text\/html/i.test(type)) throw Object.assign(new Error('LEARN returned a page instead of a PDF. Reopen Spotlight on signed-in LEARN.'), { stop: true });
-  if (Number(response.headers.get('content-length')) > MAX_PDF_BYTES) throw new Error('PDF exceeds the 12 MB download limit.');
+  if (/text\/html/i.test(type)) throw Object.assign(new Error(`LEARN returned a page instead of a ${format} file. Reopen Spotlight on signed-in LEARN.`), { stop: true });
+  if (Number(response.headers.get('content-length')) > MAX_PDF_BYTES) throw new Error('Document exceeds the 12 MB download limit.');
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('PDF response was empty.');
+  if (!reader) throw new Error('Document response was empty.');
   const chunks = [];
   let length = 0;
   try {
@@ -114,16 +117,19 @@ export async function downloadPdf(url, { signal, fetchImpl = fetch } = {}) {
       const { done, value } = await reader.read();
       if (done) break;
       length += value.length;
-      if (length > MAX_PDF_BYTES) throw new Error('PDF exceeds the 12 MB download limit.');
+      if (length > MAX_PDF_BYTES) throw new Error('Document exceeds the 12 MB download limit.');
       chunks.push(value);
     }
   } finally { await reader.cancel().catch(() => {}); }
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  if (!new TextDecoder().decode(bytes.subarray(0, 1024)).includes('%PDF-')) throw new Error('This topic did not return a PDF.');
+  if (format === 'PDF' ? !new TextDecoder().decode(bytes.subarray(0, 1024)).includes('%PDF-')
+    : !['PPTX', 'DOCX'].includes(format) || bytes[0] !== 0x50 || bytes[1] !== 0x4b || bytes[2] !== 3 || bytes[3] !== 4) throw new Error(`This topic did not return a ${format} file.`);
   return bytes;
 }
+
+export const downloadDocument = (resource, options) => downloadPdf(documentDownloadUrl(resource), { ...options, format: resource.type === 'PDF' ? 'PDF' : resource.documentFormat });
 
 export function encodePdf(bytes) {
   let binary = '';

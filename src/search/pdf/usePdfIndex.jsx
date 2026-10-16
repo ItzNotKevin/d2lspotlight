@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { subscribeStorageChanges } from '../../extension-context.js';
 import { indexMessage } from '../../learn/cache.js';
-import { downloadPdf, encodePdf, MAX_DOCUMENTS, pdfRevision, notesSection } from './core.js';
+import { downloadDocument, encodePdf, MAX_DOCUMENTS, pdfRevision, notesSection } from './core.js';
+import { documentDownloadUrl, isSearchableDocument } from '../documents.js';
 import { shouldIndexPdf } from './retention.js';
 
 export async function pdfMessage(action, payload = {}) {
   const response = await chrome.runtime.sendMessage({ type: 'pdf-index', action, ...payload });
-  if (!response?.ok) throw new Error(response?.error || 'PDF content search unavailable. Reload the extension and webpage.');
+  if (!response?.ok) throw new Error(response?.error || 'Document content search unavailable. Reload the extension and webpage.');
   return response;
 }
 
@@ -95,7 +96,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       const target = retryTarget.current;
       const individual = target && !['*', '@selection'].includes(target);
       retryTarget.current = null;
-      const candidates = index.resources.filter(resource => resource.type === 'PDF' && resource.pdfUrl
+      const candidates = index.resources.filter(resource => isSearchableDocument(resource) && documentDownloadUrl(resource)
         && (!individual || resource.id === target)
         && (individual || selectedCourses === null || selectedCourses.includes(resource.courseId))
         && (individual || selectedCourses !== null || !filters.courseId || resource.courseId === filters.courseId)
@@ -109,18 +110,18 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       for (const resource of pending.slice(0, MAX_DOCUMENTS)) {
         abort.signal.throwIfAborted();
         setCurrentResource(resource.id);
-        setMessage(`Reading PDF ${done + failed + 1} of ${Math.min(pending.length, MAX_DOCUMENTS)}: ${resource.title}`);
+        setMessage(`Reading document ${done + failed + 1} of ${Math.min(pending.length, MAX_DOCUMENTS)}: ${resource.title}`);
         requestId = crypto.randomUUID();
         try {
           await pdfMessage('progress', { state: 'pending', requestId, resourceId: resource.id, revision: pdfRevision(resource), accountId: index.accountId, generation: index.generation });
           abort.signal.throwIfAborted();
-          const bytes = await downloadPdf(resource.pdfUrl, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]) });
+          const bytes = await downloadDocument(resource, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]) });
           abort.signal.throwIfAborted();
           const result = await pdfMessage('extract', { requestId, resourceId: resource.id, accountId: index.accountId,
             generation: index.generation, revision: pdfRevision(resource), bytes: encodePdf(bytes) });
           abort.signal.throwIfAborted();
           done++;
-          if (result.document.partial || result.document.emptyPages) warning = 'Some PDFs have truncated or unreadable pages; scans and handwriting need OCR.';
+          if (result.document.partial || result.document.emptyPages) warning = 'Some documents have truncated or unreadable text; images and handwriting need OCR.';
           setRevision(value => value + 1);
         } catch (error) {
           abort.signal.throwIfAborted();
@@ -142,7 +143,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       const indexed = final.documents.filter(document => candidates.some(resource => resource.id === document.id)).length;
       const savedFailures = candidates.filter(resource => final.progress?.[resource.id]?.state === 'failed').length;
       const partial = final.documents.some(document => document.partial || document.emptyPages);
-      setMessage(`${indexed} of ${candidates.length} PDFs in this scope indexed.${savedFailures ? ` ${savedFailures} could not be read. Use Retry to try again.` : ''} ${warning || (partial ? 'Some pages have no readable text or exceed extraction limits.' : '')}`.trim());
+      setMessage(`${indexed} of ${candidates.length} documents in this scope indexed.${savedFailures ? ` ${savedFailures} could not be read. Use Retry to try again.` : ''} ${warning || (partial ? 'Some pages have no readable text or exceed extraction limits.' : '')}`.trim());
     })().catch(error => { if (!abort.signal.aborted) setMessage(error.message); }).finally(() => { if (controller.current === abort) setCurrentResource(null); });
     return () => {
       abort.abort();
@@ -155,7 +156,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
   function toggle() {
     const next = !enabled;
     setEnabled(next);
-    if (!next) setMessage('PDF indexing paused. Saved page matches remain searchable.');
+    if (!next) setMessage('Document indexing paused. Saved page matches remain searchable.');
     chrome.storage.local.set({ pdfContentSearchEnabled: next }).catch(() => {});
   }
   async function clear() {
@@ -165,7 +166,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
     try {
       await indexMessage('clear-pdf');
       setRevision(value => value + 1);
-      setMessage('PDF text cleared. Select a course or notes section, then enable PDF indexing to rebuild.');
+      setMessage('Document text cleared. Select a course or notes section, then enable document indexing to rebuild.');
     } catch (error) { setMessage(error.message); }
   }
   async function prioritize(courseId) {
@@ -174,7 +175,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       await pdfMessage('prioritize-course', { courseId, accountId: index.accountId, generation: index.generation });
       selectCourses([courseId]);
       setRetry(value => value + 1);
-      setMessage('Indexing the selected course. Pinned PDF text will be kept when making space.');
+      setMessage('Indexing the selected course. Pinned document text will be kept when making space.');
     } catch (error) { setMessage(error.message); }
   }
   return { enabled, toggle, clear, retry: id => { retryTarget.current = typeof id === 'string' ? id : '*'; setRetry(value => value + 1); }, message, status, revision,

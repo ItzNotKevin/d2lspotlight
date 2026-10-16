@@ -3,6 +3,7 @@ import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
+import { wordFixture, slideFixture } from '../tests/fixtures/office.js';
 import { searchPdfFixture } from '../tests/fixtures/search-pdf.js';
 
 // A disposable fixture extension grants access only to an intercepted LEARN origin.
@@ -23,6 +24,7 @@ const pending = new Map();
 const errors = [];
 const requested = [];
 let loggedOut = false;
+let officeEnabled = false;
 let sessionDelay = 0;
 let failSecondPdf = false;
 let delaySecondPdf = 0;
@@ -50,6 +52,9 @@ function fixture(url) {
     return ['text/html', `<html><head><title>CS 246 Fall 2026</title></head><body>${navigation}<main>${body}</main></body></html>`];
   }
   if (path === '/d2l/home/246') return ['text/html', '<!doctype html><title>CS 246 LEARN fixture</title><section><h1>CS 246 does NOT use LEARN</h1><p>Course webpage: <a href="https://student.cs.uwaterloo.ca/~cs246/F26/index.shtml">CS 246 course website</a></p><a href="https://student.cs.uwaterloo.ca/~cs246/W26/index.shtml">Old term</a></section>'];
+  if (path === '/office-fixture') return ['text/html', '<!doctype html><title>Office fixture</title><h1>Office content search</h1>'];
+  if (path === '/content/enforced/246/notes.docx') return ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', Buffer.from(wordFixture())];
+  if (path === '/d2l/api/le/1.82/246/content/topics/2461/file') return ['application/vnd.openxmlformats-officedocument.presentationml.presentation', Buffer.from(slideFixture())];
   if (path === '/') return ['text/html', '<!doctype html><title>Fixture LEARN</title><h1>PDF search fixture</h1>'];
   if (path === '/d2l/api/versions/') return ['application/json', JSON.stringify([
     { ProductCode: 'lp', SupportedVersions: ['1.49'] }, { ProductCode: 'le', SupportedVersions: ['1.82'] }])];
@@ -57,7 +62,10 @@ function fixture(url) {
   if (path.includes('/enrollments/myenrollments/')) return ['application/json', JSON.stringify({ Items: [230, 231, 246].map(id =>
     ({ OrgUnit: { Id: id, Code: `${id === 246 ? 'CS' : 'STAT'}_${id}_001_F26`, Name: `${id === 246 ? 'CS' : 'STAT'} ${id} Fall 2026` }, Access: { CanAccess: true } })), PagingInfo: { HasMoreItems: false } })];
   if (path.endsWith('/content/toc')) {
-    if (path.includes('/246/')) return ['application/json', JSON.stringify({ Modules: [] })];
+    if (path.includes('/246/')) return ['application/json', JSON.stringify({ Modules: officeEnabled ? [{ Title: 'Lecture notes', Topics: [
+      { TopicId: 2461, Title: 'Week 2 slides', Url: '/d2l/file/lecture.pptx', TopicType: 1 },
+      { TopicId: 2462, Title: 'Week 2 handout', Url: '/content/enforced/246/notes.docx', TopicType: 1 }
+    ] }] : [] })];
     const course = path.includes('/230/') ? 230 : 231;
     return ['application/json', JSON.stringify({ Modules: [{ Title: 'Lecture notes', Topics: [], Modules: [{ Title: 'Instructor A', Topics: [
       { TopicId: course, Title: 'week_02.pdf', Url: `/content/enforced/${course}/notes.pdf`, TopicType: 1, LastModifiedDate: '2026-10-12' }
@@ -130,7 +138,7 @@ try {
   })()`);
   const root = "document.getElementById('learn-spotlight-root')?.shadowRoot";
   assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true, 'A duplicate command must not close a locally opened overlay');
-  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 PDFs'), 'Automatic PDF indexing must finish');
+  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 documents'), 'Automatic PDF indexing must finish');
   assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), false, 'Maintenance settings must start collapsed');
   async function closeAndReopen() {
     await evaluate(background, `(async () => {
@@ -255,8 +263,8 @@ try {
   await change('[aria-label="Filter by course"]', '230');
   failSecondPdf = true;
   delaySecondPdf = 1500;
-  await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 231 Fall 2026"]').click()`);
-  await evaluate(page, `${root}.querySelector('[aria-label="Index PDFs for STAT 230 Fall 2026"]').click()`);
+  await evaluate(page, `${root}.querySelector('[aria-label="Index documents for STAT 231 Fall 2026"]').click()`);
+  await evaluate(page, `${root}.querySelector('[aria-label="Index documents for STAT 230 Fall 2026"]').click()`);
   await until(() => evaluate(background, "chrome.storage.local.get('pdfIndexProgressV1')"), saved => Object.entries(saved.pdfIndexProgressV1?.entries || {}).some(([id, entry]) => id.includes(':231:') && entry.state === 'pending'), 'An unfinished download must have a saved progress record');
   await evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
@@ -282,7 +290,7 @@ try {
     await globalThis.__spotlightToggleForTest(tab, chrome, 'toolbar');
   })()`);
   await until(() => evaluate(page, `${root}?.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 failed') && text.includes('Retry week_02.pdf'), 'Failure must survive complete overlay disposal and reopen');
-  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('0 of 1 PDFs in this scope indexed.'), 'Reopened indexing must finish without automatically retrying a saved failure');
+  await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('0 of 1 documents in this scope indexed.'), 'Reopened indexing must finish without automatically retrying a saved failure');
   assert.equal(requested.filter(url => url.includes('/231/notes.pdf')).length, failedDownloads, 'Saved failures must not be downloaded again without an explicit retry');
   await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
   failSecondPdf = false;
@@ -431,9 +439,43 @@ try {
   assert.ok(retained.documents.some(document => document.id === 'cache-new'));
   assert.ok(!retained.documents.some(document => document.id === 'cache-seed-0'), 'Oldest unpinned text must be replaced');
   assert.equal(retained.progress['cache-seed-0'].state, 'evicted', 'Replaced text must be tracked to prevent repeated automatic downloads');
+  // Discover modern Office files through the real TOC -> download -> offscreen
+  // -> IndexedDB pipeline, including a topic that needs the file API fallback.
+  officeEnabled = true;
+  await evaluate(background, `(async () => {
+    const key = 'learnSpotlightIndexV1', index = (await chrome.storage.local.get(key))[key];
+    await chrome.storage.local.set({ [key]: { ...index, updatedAt: null }, ['pdfIndexCourses:' + index.accountId]: ['246'], pdfContentSearchEnabled: true });
+  })()`);
+  const { targetId: officeTab } = await call('Target.createTarget', { url: 'about:blank' });
+  const { sessionId: officePage } = await call('Target.attachToTarget', { targetId: officeTab, flatten: true });
+  await call('Runtime.enable', {}, officePage);
+  await call('Fetch.enable', { patterns: [{ urlPattern: `${origin}/*`, requestStage: 'Request' }] }, officePage);
+  await call('Page.navigate', { url: `${origin}/office-fixture` }, officePage);
+  await until(() => evaluate(officePage, 'document.body?.textContent'), text => text?.includes('Office content search'), 'Office fixture must load');
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/office-fixture');
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['dist/spotlight.js'] });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => { window.open = url => { window.__officeOpened = url; }; } });
+  })()`);
+  await until(() => evaluate(officePage, `${root}?.textContent`), text => text?.includes('2 of 2 documents in this scope indexed.'), 'Office files must automatically download and index');
+  await evaluate(officePage, `(() => {
+    const input = ${root}.querySelector('input[type=search]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'cs246 permutation');
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  })()`);
+  const officeRows = await until(() => evaluate(officePage, `${root}?.querySelector('[role=listbox]')?.textContent`), text => text?.includes('Slide 2') && text.includes('Paragraphs 1–2'), 'Both Office formats must match body text despite generic titles');
+  assert.ok(!officeRows.includes('PDF page'), 'Office passage labels must never claim PDF pages');
+  await evaluate(officePage, `${root}.querySelector('[role=option]').click()`);
+  const officeOpened = await until(() => evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/office-fixture');
+    return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.__officeOpened }))[0].result;
+  })()`), Boolean, 'Office match must open its LEARN viewer');
+  assert.match(officeOpened, /\/d2l\/le\/content\/246\/viewContent\/246[12]\/View$/);
+  assert.ok(requested.some(url => url.includes('/246/content/topics/2461/file?stream=true')), 'PowerPoint must use its streaming topic endpoint');
+  assert.ok(requested.some(url => url.includes('/246/notes.docx')), 'Word must use the supplied course content URL');
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
-    keyboardPageOpening: opened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
+    keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
     courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
 } finally {

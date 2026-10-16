@@ -16,6 +16,8 @@ export async function refreshCourses({ client, session, previous, signal, onProg
       for (const resource of normalized) if (resource.type === 'PDF') {
         // The streaming file endpoint preserves inline PDF viewing and course permissions.
         resource.pdfUrl ||= `https://learn.uwaterloo.ca/d2l/api/le/${session.le}/${resource.courseId}/content/topics/${resource.topicId}/file?stream=true`;
+      } else if (resource.documentFormat) {
+        resource.documentUrl ||= `https://learn.uwaterloo.ca/d2l/api/le/${session.le}/${resource.courseId}/content/topics/${resource.topicId}/file?stream=true`;
       }
       resources.push(...await enrichLearnLinks(normalized, { signal, onDiagnostic,
         loadTopic: client.loadTopic ? (resource) => client.loadTopic(session.le, resource) : undefined,
