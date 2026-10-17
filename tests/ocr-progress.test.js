@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasPendingHandwriting } from '../src/search/ocr/progress.js';
+import { handwritingProgress, hasPendingHandwriting } from '../src/search/ocr/progress.js';
 import { indexingCandidates } from '../src/search/pdf/scope.js';
 import { OCR_VERSION } from '../src/search/ocr/config.js';
 
@@ -23,4 +23,13 @@ test('continuing handwriting skips missing, stale, failed and completed document
   assert.equal(hasPendingHandwriting({ ...document, ocr: { ...document.ocr, error: 'Could not read page' } }, 'current'), false);
   assert.equal(hasPendingHandwriting({ ...document, ocr: { ...document.ocr, complete: true } }, 'current'), false);
   assert.equal(hasPendingHandwriting({ ...document, ocr: { version: 'old', complete: true } }, 'current'), true);
+});
+
+test('handwriting progress distinguishes saved regions, finished pages and completed scans', () => {
+  const document = { totalPages: 38, pages: 38, ocr: { version: OCR_VERSION, nextPage: 5, scannedPages: 4, regionOffset: 8 } };
+  assert.equal(handwritingProgress(document), '4 of 38 PDF pages scanned · next: PDF page 5 · 8 regions saved on this page');
+  assert.match(handwritingProgress({ ...document, ocr: { ...document.ocr, nextPage: 6, scannedPages: 5, regionOffset: 0 } }), /5 of 38.*page 6 · 0 regions/);
+  assert.equal(handwritingProgress({ ...document, ocr: { ...document.ocr, scannedPages: 38, complete: true } }), '38 of 38 PDF pages scanned · scan complete');
+  assert.match(handwritingProgress({ ...document, ocr: { ...document.ocr, version: 'old' } }), /0 of 38.*page 1 · 0 regions/);
+  assert.match(handwritingProgress({ ...document, ocr: { ...document.ocr, error: 'Timed out', partial: true } }), /some regions omitted · Timed out Use Retry/);
 });

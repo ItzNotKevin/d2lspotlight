@@ -9,6 +9,7 @@ import { piazzaIndexMessage } from './piazza/cache.js';
 import { associateCourses } from './search/associations.js';
 import { usePdfIndex, pdfMessage } from './search/pdf/usePdfIndex.jsx';
 import { isSearchableDocument, documentDownloadUrl } from './search/documents.js';
+import { handwritingProgress } from './search/ocr/progress.js';
 import { notesSection } from './search/pdf/core.js';
 import { useCourseSites } from './sites/useCourseSites.jsx';
 
@@ -247,8 +248,8 @@ export function LearnSpotlight(props) {
       </div>
       <p role="status">{!index.accountId || !verifiedGeneration || verifiedGeneration !== index.generation ? 'LEARN and document search require a verified login.' : pdf.message || (onLearn ? 'Document text will be indexed after your LEARN session is checked.' : 'Saved document text is searchable. Open LEARN to index more documents.')}{pdf.status ? ` · ${pdf.status.documents.length} documents · ${(pdf.status.chars * 2 / (1024 * 1024)).toFixed(1)} MB text (approx.)` : ''}</p>
       {pdf.status && !pdf.status.ocrAvailable && <p>Handwriting models are not installed in this build. Printed PDF and Office text remain searchable.</p>}
-      {pdf.status?.ocrAvailable && <p>Handwriting joins normal searches automatically. OCR can misread words and symbols; verify matches on the PDF page. Scanning processes up to 8 small region batches each time Spotlight opens, including handwritten additions on printed pages.</p>}
-      {pdf.status?.documents.filter(document => document.ocr).map(document => <p key={document.id}>{index.resources.find(resource => resource.id === document.id)?.title}: handwriting {document.ocr.scannedPages || 0} of {document.ocr.totalPages || document.totalPages} pages scanned{document.ocr.partial ? ' · some regions omitted' : ''}{document.ocr.error ? ` · ${document.ocr.error} Use Retry document indexing.` : ''}</p>)}
+      {pdf.status?.ocrAvailable && <p>Handwriting joins normal searches automatically. OCR can misread words and symbols; verify matches on the PDF page. Scanning processes up to 8 small region batches at a time, including handwritten additions on printed pages. Use Continue handwriting scan for another batch without reopening Spotlight. Regions are parts of a page; saved regions remain searchable while the rest is scanned.</p>}
+      {pdf.status?.documents.filter(document => document.ocr).map(document => <p key={document.id}>{index.resources.find(resource => resource.id === document.id)?.title}: handwriting {handwritingProgress(document)}</p>)}
       {showDiagnostics && <textarea className="ls-diagnostics" aria-label="Connection diagnostics — copy to share" readOnly value={JSON.stringify({ adapter: 'browser-session-v2', events: diagnostics }, null, 2)} />}
     </div>
   );

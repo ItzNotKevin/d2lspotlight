@@ -3,7 +3,7 @@ import { subscribeStorageChanges } from '../../extension-context.js';
 import { indexMessage } from '../../learn/cache.js';
 import { downloadDocument, encodePdf, MAX_DOCUMENTS, pdfRevision } from './core.js';
 import { indexingCandidates } from './scope.js';
-import { hasPendingHandwriting } from '../ocr/progress.js';
+import { handwritingProgress, hasPendingHandwriting } from '../ocr/progress.js';
 import { shouldIndexPdf } from './retention.js';
 import { OCR_BATCHES_PER_SESSION, OCR_VERSION } from '../ocr/config.js';
 
@@ -147,8 +147,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
             abort.signal.throwIfAborted();
             requestId = crypto.randomUUID();
             setCurrentResource(resource.id);
-            const page = saved.ocr?.version === OCR_VERSION ? saved.ocr.nextPage : 1;
-            setMessage(`Scanning handwriting · ${resource.title} · PDF page ${page} of ${saved.pages} · region ${(saved.ocr?.regionOffset || 0) + 1}. Saved text stays searchable; scanning resumes when reopened.`);
+            setMessage(`Scanning handwriting · ${resource.title} · ${handwritingProgress(saved)}. Saved text stays searchable.`);
             try {
               bytes ||= encodePdf(await downloadDocument(resource, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]) }));
               const result = await pdfMessage('ocr', { requestId, resourceId: resource.id, revision: pdfRevision(resource), accountId: index.accountId, generation: index.generation, bytes });
