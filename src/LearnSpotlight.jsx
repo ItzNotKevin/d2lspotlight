@@ -240,6 +240,7 @@ export function LearnSpotlight(props) {
         {index.accountId && <button className="ls-chip" onClick={clear}>Clear LEARN data</button>}
         <button className="ls-chip" aria-pressed={pdf.enabled} onClick={pdf.toggle}>Document indexing: {pdf.enabled ? 'on' : 'paused'}</button>
         {pdf.status?.ocrAvailable && <button className="ls-chip" aria-pressed={pdf.handwriting} onClick={pdf.toggleHandwriting}>Handwriting indexing: {pdf.handwriting ? 'on' : 'paused'} · experimental</button>}
+        {onLearn && pdf.status?.ocrAvailable && <button className="ls-chip" disabled={!pdf.canContinueHandwriting} onClick={pdf.continueHandwriting}>Continue handwriting scan</button>}
         {onLearn && <button className="ls-chip" onClick={pdf.retry}>Retry document indexing</button>}
         {!!pdf.status?.documents.length && <button className="ls-chip" onClick={pdf.clear}>Clear document text</button>}
         {diagnostics.length > 0 && <button className="ls-chip" onClick={() => setShowDiagnostics((value) => !value)}>{showDiagnostics ? 'Hide' : 'Show'} diagnostics</button>}

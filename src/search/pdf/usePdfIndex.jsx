@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { subscribeStorageChanges } from '../../extension-context.js';
 import { indexMessage } from '../../learn/cache.js';
-import { downloadDocument, encodePdf, MAX_DOCUMENTS, pdfRevision, notesSection } from './core.js';
-import { documentDownloadUrl, isSearchableDocument } from '../documents.js';
+import { downloadDocument, encodePdf, MAX_DOCUMENTS, pdfRevision } from './core.js';
+import { indexingCandidates } from './scope.js';
+import { hasPendingHandwriting } from '../ocr/progress.js';
 import { shouldIndexPdf } from './retention.js';
 import { OCR_BATCHES_PER_SESSION, OCR_VERSION } from '../ocr/config.js';
 
@@ -25,6 +26,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
   const [pinnedCourses, setPinnedCourses] = useState([]);
   const [preferencesReady, setPreferencesReady] = useState(null);
   const failures = Object.fromEntries(Object.entries(status?.progress || {}).filter(([, entry]) => entry.state === 'failed').map(([id, entry]) => [id, entry.error]));
+  const [scanning, setScanning] = useState(false);
   const [currentResource, setCurrentResource] = useState(null);
   const retryTarget = useRef(null);
   const preferenceKey = `pdfIndexCourses:${index.accountId}`;
@@ -90,6 +92,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
     if (!ready || preferencesReady !== preferenceKey || !enabled || !isOpen || !index.accountId || !index.generation || verifiedGeneration !== index.generation) return;
     const abort = new AbortController();
     controller.current = abort;
+    setScanning(true);
     let requestId = null;
     (async () => {
       const existing = await pdfMessage('status');
@@ -97,16 +100,9 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       setStatus(existing);
       const cached = new Map(existing.documents.map(document => [document.id, document.revision]));
       const target = retryTarget.current;
-      const individual = target && !['*', '@selection'].includes(target);
       retryTarget.current = null;
-      const candidates = index.resources.filter(resource => isSearchableDocument(resource) && documentDownloadUrl(resource)
-        && (!individual || resource.id === target)
-        && (individual || selectedCourses === null || selectedCourses.includes(resource.courseId))
-        && (individual || selectedCourses !== null || !filters.courseId || resource.courseId === filters.courseId)
-        && (individual || selectedCourses !== null || !filters.source || filters.source === 'LEARN')
-        && (individual || selectedCourses !== null || !filters.notesSection || notesSection(resource) === filters.notesSection)
-        && (individual || selectedCourses !== null || !filters.instructor || index.pdfLabels?.[notesSection(resource)] === filters.instructor));
-      const pending = candidates.filter(resource => shouldIndexPdf(resource, cached.get(resource.id), existing.progress?.[resource.id], target));
+      const candidates = indexingCandidates(index, filters, selectedCourses, target);
+      const pending = target === '@handwriting' ? [] : candidates.filter(resource => shouldIndexPdf(resource, cached.get(resource.id), existing.progress?.[resource.id], target));
       let done = 0;
       let failed = 0;
       let warning = '';
@@ -145,7 +141,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       if (handwriting && final.ocrAvailable) {
         for (const resource of candidates.filter(resource => resource.type === 'PDF')) {
           let saved = final.documents.find(document => document.id === resource.id);
-          if (!saved || (saved.ocr?.error && !target)) continue;
+          if (!saved || saved.revision !== pdfRevision(resource) || (saved.ocr?.error && target !== '*' && target !== resource.id)) continue;
           let bytes;
           while (scanned < OCR_BATCHES_PER_SESSION && !(saved.ocr?.version === OCR_VERSION && saved.ocr.complete)) {
             abort.signal.throwIfAborted();
@@ -177,7 +173,7 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       const savedFailures = candidates.filter(resource => final.progress?.[resource.id]?.state === 'failed').length;
       const partial = final.documents.some(document => document.partial || document.emptyPages);
       setMessage(`${indexed} of ${candidates.length} documents in this scope indexed.${savedFailures ? ` ${savedFailures} could not be read. Use Retry to try again.` : ''} ${warning || (partial ? 'Some pages have no readable text or exceed extraction limits.' : '')}`.trim());
-    })().catch(error => { if (!abort.signal.aborted) setMessage(error.message); }).finally(() => { if (controller.current === abort) setCurrentResource(null); });
+    })().catch(error => { if (!abort.signal.aborted) setMessage(error.message); }).finally(() => { if (controller.current === abort) { controller.current = null; setCurrentResource(null); setScanning(false); } });
     return () => {
       abort.abort();
       if (requestId) {
@@ -211,6 +207,13 @@ export function usePdfIndex({ index, isOpen, verifiedGeneration, filters }) {
       setMessage('Indexing the selected course. Pinned document text will be kept when making space.');
     } catch (error) { setMessage(error.message); }
   }
-  return { enabled, toggle, clear, handwriting, toggleHandwriting: () => { const next = !handwriting; setHandwriting(next); chrome.storage.local.set({ handwritingIndexingEnabled: next }).catch(() => {}); }, retry: id => { retryTarget.current = typeof id === 'string' ? id : '*'; setRetry(value => value + 1); }, message, status, revision,
+  const canContinueHandwriting = ready && preferencesReady === preferenceKey && enabled && handwriting && !scanning && isOpen && Boolean(index.accountId && index.generation && verifiedGeneration === index.generation && status?.ocrAvailable)
+    && indexingCandidates(index, filters, selectedCourses).some(resource => resource.type === 'PDF' && hasPendingHandwriting(status.documents.find(document => document.id === resource.id), pdfRevision(resource)));
+  function continueHandwriting() {
+    if (!canContinueHandwriting || controller.current) return;
+    retryTarget.current = '@handwriting';
+    setRetry(value => value + 1);
+  }
+  return { enabled, toggle, clear, handwriting, canContinueHandwriting, continueHandwriting, toggleHandwriting: () => { const next = !handwriting; setHandwriting(next); chrome.storage.local.set({ handwritingIndexingEnabled: next }).catch(() => {}); }, retry: id => { retryTarget.current = typeof id === 'string' ? id : '*'; setRetry(value => value + 1); }, message, status, revision,
     selectedCourses, selectCourses, pinnedCourses, pinCourse, failures, currentResource, prioritize };
 }
