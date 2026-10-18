@@ -48,7 +48,7 @@ Open the address printed by Vite. This preview does not establish that signed-in
 
 ## Index courses and documents
 
-Open Spotlight on signed-in LEARN and use **Settings → LEARN and documents → Refresh courses** to discover resources. Select the courses to index. Document indexing saves progress; reopening Spotlight on signed-in LEARN resumes unfinished work in the selected scope. Failed files retain their error and retry controls.
+Open Spotlight on signed-in LEARN and use **Settings → LEARN and documents → Refresh courses** to discover resources. Select the courses to index. Document indexing saves progress; reopening Spotlight on signed-in LEARN resumes unfinished work in the selected scope. A progress bar above the search results shows how many documents in the current search scope are indexed, pending, failed, or replaced, plus the file currently being processed. Expand **Failed documents** to see errors and retry individual files on signed-in LEARN. Failed files retain their error and retry controls.
 
 Pin courses under Settings to protect cached text. When the cache fills, older unpinned text can be replaced. **Index this course** restores missing text without clearing other courses up front. Coverage distinguishes pending, failed, and replaced files.
 
