@@ -21,7 +21,7 @@ export function DocumentProgress({ resources, pdf, canIndex }) {
       <summary>Failed documents ({coverage.failures.length})</summary>
       <ul>{coverage.failures.map(({ resource, error }) => <li key={resource.id}>
         <span>{resource.title}: {error}</span>{' '}
-        <button className="ls-chip" disabled={!canIndex || !pdf.enabled || Boolean(pdf.currentResource)} onClick={() => pdf.retry(resource.id)}>Retry {resource.title}</button>
+        <button className="ls-chip" disabled={!canIndex || !pdf.enabled || pdf.currentResource === resource.id} onClick={() => pdf.retry(resource.id)}>Retry {resource.title}</button>
       </li>)}</ul>
     </details>}
   </div>;

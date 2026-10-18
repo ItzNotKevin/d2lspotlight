@@ -4,6 +4,9 @@ import { documentDownloadUrl } from '../documents.js';
 import { mathSearchAliases } from '../ocr/math.js';
 
 export const MAX_PDF_BYTES = 12 * 1024 * 1024;
+// Office archives often contain large images that are never expanded for text search.
+export const MAX_OFFICE_BYTES = 32 * 1024 * 1024;
+export const documentByteLimit = format => ['PPTX', 'DOCX'].includes(format) ? MAX_OFFICE_BYTES : MAX_PDF_BYTES;
 export const MAX_PAGES = 400;
 export const MAX_PAGE_CHARS = 30000;
 export const MAX_DOCUMENT_CHARS = 1000000;
@@ -104,6 +107,8 @@ export function searchPdfPages(resource, pages, query, limit = 3) {
 
 export async function downloadPdf(url, { signal, fetchImpl = fetch, format = 'PDF' } = {}) {
   pdfPageUrl({ pdfUrl: url }, 1);
+  const maxBytes = documentByteLimit(format);
+  const sizeError = () => new Error(`${format} exceeds the ${maxBytes / (1024 * 1024)} MiB download limit.`);
   const response = await fetchImpl(url, { credentials: 'same-origin', redirect: 'error', signal,
     headers: { Accept: format === 'PDF' ? 'application/pdf' : format === 'PPTX'
       ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation, application/octet-stream'
@@ -112,7 +117,10 @@ export async function downloadPdf(url, { signal, fetchImpl = fetch, format = 'PD
   if (!response.ok) throw new Error(`${format} unavailable (HTTP ${response.status}).`);
   const type = response.headers.get('content-type') || '';
   if (/text\/html/i.test(type)) throw Object.assign(new Error(`LEARN returned a page instead of a ${format} file. Reopen Spotlight on signed-in LEARN.`), { stop: true });
-  if (Number(response.headers.get('content-length')) > MAX_PDF_BYTES) throw new Error('Document exceeds the 12 MB download limit.');
+  if (Number(response.headers.get('content-length')) > maxBytes) {
+    await response.body?.cancel().catch(() => {});
+    throw sizeError();
+  }
   const reader = response.body?.getReader();
   if (!reader) throw new Error('Document response was empty.');
   const chunks = [];
@@ -123,7 +131,7 @@ export async function downloadPdf(url, { signal, fetchImpl = fetch, format = 'PD
       const { done, value } = await reader.read();
       if (done) break;
       length += value.length;
-      if (length > MAX_PDF_BYTES) throw new Error('Document exceeds the 12 MB download limit.');
+      if (length > maxBytes) throw sizeError();
       chunks.push(value);
     }
   } finally { await reader.cancel().catch(() => {}); }

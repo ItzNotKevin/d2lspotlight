@@ -1,5 +1,5 @@
 import { openOfficeZip } from './zip.js';
-import { MAX_DOCUMENT_CHARS, MAX_PAGE_CHARS, MAX_PAGES, MAX_PDF_BYTES } from '../pdf/core.js';
+import { MAX_DOCUMENT_CHARS, MAX_PAGE_CHARS, MAX_PAGES, MAX_OFFICE_BYTES } from '../pdf/core.js';
 
 const namespaces = {
   p: ['http://schemas.openxmlformats.org/presentationml/2006/main', 'http://purl.oclc.org/ooxml/presentationml/main'],
@@ -20,7 +20,8 @@ function paragraphText(paragraph, namespace) {
 }
 
 export async function extractOffice(bytes, format, { signal, Parser = DOMParser } = {}) {
-  if (!['DOCX', 'PPTX'].includes(format) || bytes.length > MAX_PDF_BYTES) throw new Error('Unsupported Office document or download exceeds 12 MB.');
+  if (!['DOCX', 'PPTX'].includes(format)) throw new Error('Unsupported Office document.');
+  if (bytes.length > MAX_OFFICE_BYTES) throw new Error(`Office document exceeds the ${MAX_OFFICE_BYTES / (1024 * 1024)} MiB download limit.`);
   const read = openOfficeZip(bytes, signal);
   const pages = [];
   let chars = 0, partial = false, totalPages = 0;

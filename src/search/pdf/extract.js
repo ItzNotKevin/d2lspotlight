@@ -1,5 +1,5 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { MAX_PDF_BYTES, extractDocumentText } from './core.js';
+import { MAX_PDF_BYTES, MAX_OFFICE_BYTES, extractDocumentText } from './core.js';
 import { extractOffice } from '../office/core.js';
 import { scanPdfPage, cancelOcr } from '../ocr/offscreen.js';
 
@@ -7,7 +7,7 @@ GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('dist/pdf.worker.mjs');
 const tasks = new Map();
 const officeTasks = new Map();
 async function extractOfficeFile(base64, id, format) {
-  if (typeof base64 !== 'string' || base64.length > Math.ceil(MAX_PDF_BYTES / 3) * 4) throw new Error('Document exceeds extraction limit.');
+  if (typeof base64 !== 'string' || base64.length > Math.ceil(MAX_OFFICE_BYTES / 3) * 4) throw new Error('Office document exceeds extraction limit.');
   const controller = new AbortController();
   officeTasks.set(id, controller);
   const timer = setTimeout(() => controller.abort(), 60000);

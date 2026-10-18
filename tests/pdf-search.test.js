@@ -85,7 +85,7 @@ test('downloads are credentialed, bounded, cancellable and reject login pages an
   }
   let reads = 0;
   const huge = new ReadableStream({ pull(controller) { reads++; controller.enqueue(new Uint8Array(MAX_PDF_BYTES / 2)); } });
-  await assert.rejects(downloadPdf(resource.pdfUrl, { fetchImpl: async () => new Response(huge) }), /12 MB/);
+  await assert.rejects(downloadPdf(resource.pdfUrl, { fetchImpl: async () => new Response(huge) }), /12 MiB/);
   assert.ok(reads <= 4);
   const abort = new AbortController(); abort.abort();
   await assert.rejects(downloadPdf(resource.pdfUrl, { signal: abort.signal, fetchImpl: async () => new Response(searchPdfFixture()) }), { name: 'AbortError' });
