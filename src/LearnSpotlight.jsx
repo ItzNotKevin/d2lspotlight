@@ -8,6 +8,7 @@ import { usePiazzaIndex } from './piazza/usePiazzaIndex.jsx';
 import { piazzaIndexMessage } from './piazza/cache.js';
 import { associateCourses } from './search/associations.js';
 import { usePdfIndex, pdfMessage } from './search/pdf/usePdfIndex.jsx';
+import { DocumentProgress } from './search/pdf/DocumentProgress.jsx';
 import { isSearchableDocument, documentDownloadUrl } from './search/documents.js';
 import { handwritingProgress } from './search/ocr/progress.js';
 import { notesSection } from './search/pdf/core.js';
@@ -279,9 +280,8 @@ export function LearnSpotlight(props) {
         </div>}
       </div>
       {sites.prompt}{sites.status}
-      {pdf.status && coveragePdfs.length > covered.length && <p className="ls-coverage" role="status">Document contents searched: {covered.length} of {coveragePdfs.length} in this scope. Some contents aren’t indexed yet; document titles remain searchable.</p>}
+      <DocumentProgress resources={coveragePdfs} pdf={pdf} canIndex={onLearn && learnSearchReady} />
       {pdf.status?.ocrAvailable && handwritingDocuments.length > 0 && <p className="ls-coverage" role="status">Handwriting search is experimental: {handwritingDocuments.reduce((sum, document) => sum + (document.ocr?.scannedPages || 0), 0)} of {handwritingDocuments.reduce((sum, document) => sum + document.totalPages, 0)} PDF pages scanned. Saved OCR text joins normal results; unscanned or misread handwriting may be missing.</p>}
-      {covered.some(resource => pdf.status?.documents.some(document => document.id === resource.id && (document.partial || document.emptyPages))) && <p className="ls-coverage" role="status">Some indexed documents have unreadable or omitted pages, so their content search is incomplete.</p>}
       {learnSearchReady && (index.courseSites || []).some(site => site.enabled && site.partial && (!pdfFilters.courseId || site.courseId === pdfFilters.courseId)) && (!pdfFilters.source || pdfFilters.source === 'Website') && <p className="ls-coverage" role="status">Course website coverage is partial; some pages may be missing from search.</p>}
       <details className="ls-settings" aria-label="Search settings"><summary>Settings</summary>
       <div className="ls-settings-body">{connection}<h3>Course websites</h3>{sites.settings}<h3>Piazza</h3>{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
