@@ -262,6 +262,26 @@ try {
   await until(() => evaluate(page, `${root}.querySelector('[aria-label="Filter by instructor"]')?.textContent`), text => text?.includes('Dr Example'), 'Saved instructor label must become a filter');
   await change('[aria-label="Filter by instructor"]', 'Dr Example');
   await until(rows, text => text?.includes('PDF page 2') && text.includes('Dr Example'), 'Instructor and notes filters must preserve page match');
+  await change('[aria-label="Search source"]', 'LEARN');
+  await change('[aria-label="Filter by course"]', '230');
+  await change('[aria-label="Filter by notes section"]', section);
+  await change('[aria-label="Filter by instructor"]', 'Dr Example');
+  await evaluate(page, `Array.from(${root}.querySelectorAll('.ls-filter-modes button')).find(button => button.textContent === 'Documents').click()`);
+  await evaluate(page, `Array.from(${root}.querySelectorAll('.ls-filter-modes button')).find(button => button.textContent === 'Recent').click()`);
+  await evaluate(page, `${root}.querySelector('.ls-clear-filters').click()`);
+  await until(rows, text => text?.includes('STAT_231') && text.includes('PDF page 2'), 'Clearing filters must restore results across courses');
+  assert.deepEqual(await evaluate(page, `({
+    query: ${root}.querySelector('input[type=search]').value,
+    filters: Array.from(${root}.querySelectorAll('.ls-course-filter')).map(select => select.value),
+    modes: Array.from(${root}.querySelectorAll('.ls-mode')).slice(-2).map(button => button.getAttribute('aria-pressed')),
+    focused: ${root}.activeElement === ${root}.querySelector('input[type=search]'),
+    clearVisible: Boolean(${root}.querySelector('.ls-clear-filters'))
+  })`), { query: 'permutation', filters: ['', '', '', ''], modes: ['false', 'false'], focused: true, clearVisible: false });
+  await change('[aria-label="Filter by course"]', '230');
+  await change('[aria-label="Filter by notes section"]', section);
+  await change('[aria-label="Filter by instructor"]', 'Dr Example');
+  await until(rows, text => text?.includes('Dr Example') && !text.includes('STAT_231'), 'Filters must still work after clearing');
+
   await evaluate(page, `${root}.querySelector('input[type=search]').focus()`);
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, page);
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, page);
@@ -574,7 +594,7 @@ try {
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', clearActiveFilters: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
   }
 } finally {
   browser.kill();
