@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { DOMParser } from '@xmldom/xmldom';
 import { extractOffice } from '../src/search/office/core.js';
 import { openOfficeZip } from '../src/search/office/zip.js';
-import { wordFixture, slideFixture, slideParts, officeZip, wordXml, wordParagraph } from './fixtures/office.js';
+import { wordFixture, slideFixture, largeSlideFixture, slideParts, officeZip, wordXml, wordParagraph } from './fixtures/office.js';
 import { searchPdfCache } from '../src/search/pdf/background.js';
-import { pdfRevision, downloadDocument } from '../src/search/pdf/core.js';
+import { pdfRevision, downloadDocument, MAX_PDF_BYTES, MAX_OFFICE_BYTES } from '../src/search/pdf/core.js';
 import { normalizeToc } from '../src/learn/normalize.js';
 import { reconcilePdfProgress, updatePdfProgress } from '../src/search/pdf/progress.js';
 import { matchExplanation } from '../src/search/relevance.js';
@@ -108,4 +108,33 @@ test('Office downloads are same-origin and reject login responses, wrong signatu
   await assert.rejects(downloadDocument(item, { fetchImpl: async () => new Response('login', { headers: { 'Content-Type': 'text/html' } }) }), /page instead/);
   await assert.rejects(downloadDocument(item, { fetchImpl: async () => new Response('%PDF-1.0') }), /DOCX/);
   await assert.rejects(downloadDocument({ ...item, documentUrl: 'https://example.test/notes.docx' }), /Unsupported/);
+});
+
+
+test('image-heavy lectures above the PDF limit download and extract only their text', async () => {
+  const fixture = largeSlideFixture();
+  assert.ok(fixture.length > MAX_PDF_BYTES);
+  for (const headers of [{ 'Content-Length': String(fixture.length) }, {}]) {
+    const bytes = await downloadDocument(resource('PPTX'), { fetchImpl: async () => new Response(fixture, { headers }) });
+    const document = await extractOffice(bytes, 'PPTX', options);
+    assert.equal(document.totalPages, 2);
+    assert.equal(document.pages[1].text, 'Permutation is an ordered arrangement.');
+    assert.equal(document.partial, false);
+  }
+});
+
+test('Office download caps apply to declared and streamed sizes and cancel the response', async () => {
+  for (const format of ['PPTX', 'DOCX']) {
+    let cancelled = false;
+    const declared = new ReadableStream({ cancel() { cancelled = true; } });
+    await assert.rejects(downloadDocument(resource(format), { fetchImpl: async () => new Response(declared,
+      { headers: { 'Content-Length': String(MAX_OFFICE_BYTES + 1) } }) }), /32 MiB/);
+    assert.equal(cancelled, true);
+    cancelled = false;
+    const chunk = new Uint8Array(4 * 1024 * 1024);
+    const streamed = new ReadableStream({ pull(controller) { controller.enqueue(chunk); }, cancel() { cancelled = true; } });
+    await assert.rejects(downloadDocument(resource(format), { fetchImpl: async () => new Response(streamed) }), /32 MiB/);
+    assert.equal(cancelled, true);
+    await assert.rejects(extractOffice(new Uint8Array(MAX_OFFICE_BYTES + 1), format, options), /32 MiB/);
+  }
 });

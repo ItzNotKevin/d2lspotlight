@@ -3,7 +3,7 @@ import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { wordFixture, slideFixture } from '../tests/fixtures/office.js';
+import { wordFixture, largeSlideFixture } from '../tests/fixtures/office.js';
 import { searchPdfFixture } from '../tests/fixtures/search-pdf.js';
 
 // A disposable fixture extension grants access only to an intercepted LEARN origin.
@@ -58,7 +58,7 @@ function fixture(url) {
   if (path === '/d2l/home/246') return ['text/html', '<!doctype html><title>CS 246 LEARN fixture</title><section><h1>CS 246 does NOT use LEARN</h1><p>Course webpage: <a href="https://student.cs.uwaterloo.ca/~cs246/F26/index.shtml">CS 246 course website</a></p><a href="https://student.cs.uwaterloo.ca/~cs246/W26/index.shtml">Old term</a></section>'];
   if (path === '/office-fixture') return ['text/html', '<!doctype html><title>Office fixture</title><h1>Office content search</h1>'];
   if (path === '/content/enforced/246/notes.docx') return ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', Buffer.from(wordFixture())];
-  if (path === '/d2l/api/le/1.82/246/content/topics/2461/file') return ['application/vnd.openxmlformats-officedocument.presentationml.presentation', Buffer.from(slideFixture())];
+  if (path === '/d2l/api/le/1.82/246/content/topics/2461/file') return ['application/vnd.openxmlformats-officedocument.presentationml.presentation', Buffer.from(largeSlideFixture())];
   if (path === '/') return ['text/html', '<!doctype html><title>Fixture LEARN</title><h1>PDF search fixture</h1>'];
   if (path === '/d2l/api/versions/') return ['application/json', JSON.stringify([
     { ProductCode: 'lp', SupportedVersions: ['1.49'] }, { ProductCode: 'le', SupportedVersions: ['1.82'] }])];

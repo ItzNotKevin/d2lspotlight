@@ -51,3 +51,7 @@ export function slideParts() {
   };
 }
 export const slideFixture = () => officeZip(slideParts());
+// Image-heavy lectures can exceed the PDF cap while containing little searchable XML.
+export const largeSlideFixture = () => officeZip({ ...slideParts(),
+  'ppt/media/image1.bin': new Uint8Array(13 * 1024 * 1024)
+}, { stored: true });
