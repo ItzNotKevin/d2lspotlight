@@ -1,6 +1,7 @@
 import { subscribeStorageChanges } from './extension-context.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Spotlight } from './Spotlight.jsx';
+import { RememberedSection } from './settings/RememberedSection.jsx';
 import { createLearnClient, LEARN_ORIGIN } from './learn/client.js';
 import { CACHE_KEY, emptyIndex, indexMessage } from './learn/cache.js';
 import { REFRESH_INTERVAL, refreshCourses } from './learn/sync.js';
@@ -285,9 +286,9 @@ export function LearnSpotlight(props) {
       {learnSearchReady && (index.courseSites || []).some(site => site.enabled && site.partial && (!pdfFilters.courseId || site.courseId === pdfFilters.courseId)) && (!pdfFilters.source || pdfFilters.source === 'Website') && <p className="ls-coverage" role="status">Course website coverage is partial; some pages may be missing from search.</p>}
       <details className="ls-settings" aria-label="Search settings"><summary>Settings</summary>
       <div className="ls-settings-body">
-      <details className="ls-settings-group"><summary>LEARN & document indexing</summary><div className="ls-settings-group-body">{connection}</div></details>
-      <details className="ls-settings-group"><summary>Course websites</summary><div className="ls-settings-group-body">{sites.settings}</div></details>
-      <details className="ls-settings-group"><summary>Piazza</summary><div className="ls-settings-group-body">{piazza.connection}</div></details>
+      <RememberedSection sectionId="learn" label="LEARN & document indexing">{connection}</RememberedSection>
+      <RememberedSection sectionId="websites" label="Course websites">{sites.settings}</RememberedSection>
+      <RememberedSection sectionId="piazza" label="Piazza">{piazza.connection}</RememberedSection>
       {combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:
       <select aria-label={`Confirm course association for ${choice.piazza.name}`} value="" onChange={(event) => {

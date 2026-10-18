@@ -335,6 +335,10 @@ try {
   await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 indexed') && text.includes('STAT 230'), 'Course indexing counts must be displayed');
   assert.equal(await evaluate(page, `${root}.querySelectorAll('.ls-settings-group').length`), 3, 'Settings must group connected sources');
   await evaluate(page, `${root}.querySelector('.ls-settings-group > summary').click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get('spotlightSettingsSection:learn')"), saved => saved['spotlightSettingsSection:learn'] === true, 'Expanding LEARN settings must save the section preference');
+  await evaluate(page, `${root}.querySelectorAll('.ls-settings-group > summary')[1].click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get(['spotlightSettingsSection:learn', 'spotlightSettingsSection:websites'])"), saved => saved['spotlightSettingsSection:learn'] === true && saved['spotlightSettingsSection:websites'] === true, 'Section preferences must be saved independently');
+
   const settingsWheel = await evaluate(page, `(() => {
     const panel = ${root}.querySelector('.ls-settings-body');
     const bounds = panel.getBoundingClientRect();
@@ -379,6 +383,9 @@ try {
   })()`);
   await until(async () => requested.filter(url => url.includes('/231/notes.pdf')).length, count => count > interruptedDownloads, 'Reopening must resume the unfinished PDF download');
   await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 failed') && text.includes('Retry week_02.pdf'), 'Failed PDF must show its error and individual retry');
+  await until(() => evaluate(page, `${root}.querySelector('.ls-settings-group').open`), Boolean, 'LEARN settings must restore after the overlay is disposed and reopened');
+  await evaluate(page, `${root}.querySelector('.ls-settings-group > summary').click()`);
+  await until(() => evaluate(background, "chrome.storage.local.get('spotlightSettingsSection:learn')"), saved => saved['spotlightSettingsSection:learn'] === false, 'Collapsing a section must save the closed state');
   delaySecondPdf = 0;
   const failedDownloads = requested.filter(url => url.includes('/231/notes.pdf')).length;
   await evaluate(background, `(async () => {
@@ -566,6 +573,8 @@ try {
   })()`);
   const officeRows = await until(() => evaluate(officePage, `${root}?.querySelector('[role=listbox]')?.textContent`), text => text?.includes('Slide 2') && text.includes('Paragraphs 1–2'), 'Both Office formats must match body text despite generic titles');
   assert.ok(!officeRows.includes('PDF page'), 'Office passage labels must never claim PDF pages');
+  await until(() => evaluate(officePage, `Array.from(${root}.querySelectorAll('.ls-settings-group')).map(section => section.open).join(',')`), value => value === 'false,true,false', 'A new tab must restore each saved settings section independently');
+
   // Verify the refreshed layout at desktop and narrow viewport sizes.
   for (const width of [1280, 390]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 850, deviceScaleFactor: 1, mobile: false }, officePage);
@@ -594,7 +603,7 @@ try {
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
-    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', clearActiveFilters: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
+    courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', clearActiveFilters: 'passed', rememberedSettingsSections: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
   }
 } finally {
   browser.kill();

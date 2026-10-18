@@ -32,7 +32,7 @@ The normal build automatically downloads and verifies pinned OCR models if they 
 4. Press **⌘⇧K** on Mac or **Ctrl+Shift+K** on Windows/Linux, or click the extension icon.
 5. Leave Spotlight open while courses load, then search a resource title, course code, module, or document passage.
 
-Use **Clear filters** to reset active source, course, document, recent, section, and instructor filters while keeping your search query.
+Use **Clear filters** to reset active source, course, document, recent, section, and instructor filters while keeping your search query. Settings remembers which source groups you expand on this device.
 
 Use ↑/↓ to select a result and Enter to open it. Esc clears the query first, then closes Spotlight. If Chrome has not assigned the shortcut, configure it at `chrome://extensions/shortcuts`.
 
