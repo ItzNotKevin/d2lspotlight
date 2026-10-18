@@ -1,7 +1,7 @@
 import { canOpenResource } from './services.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { BookOpen, ChevronRight, Clock3, FileText, LayoutGrid, Presentation, Search } from 'lucide-react';
+import { BookOpen, ChevronRight, Clock3, FileText, LayoutGrid, Presentation, Search, X } from 'lucide-react';
 
 import { prepareQuery, rankResource } from './search/rank.js';
 import { hybridSearch } from './search/hybrid.js';
@@ -286,6 +286,23 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     setNotice('');
   }
 
+  const hasActiveFilters = scope !== 'all' || Boolean(courseId || source || notesSection || instructor || documents || recent);
+  function clearFilters() {
+    setScope('all');
+    setCourseId('');
+    setSource('');
+    setNotesSection('');
+    setInstructor('');
+    setInstructorLabel('');
+    setDocuments(false);
+    setRecent(false);
+    previousResults.current = { query: searchValue, items: [] };
+    setSelectedIndex(0);
+    if (listRef.current) listRef.current.scrollTop = 0;
+    inputRef.current?.focus();
+    setNotice('Filters cleared.');
+  }
+
   function selectFilter(filter) {
     if (filter === 'all' || filter === 'course') setScope(filter);
     if (filter === 'all') { setCourseId(''); setSource(''); setNotesSection(''); setInstructor(''); }
@@ -414,6 +431,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                         const active = shortcut.id === 'all' && !demo ? !courseId && !source : isFilterActive(shortcut.id, scope, documents, recent);
                         return <button key={shortcut.id} className="ls-chip ls-mode" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
                       })}
+                      {hasActiveFilters && <button type="button" className="ls-chip ls-clear-filters" onClick={clearFilters}><X size={12} aria-hidden="true" />Clear filters</button>}
                       </div>
                       <div className="ls-filter-selectors">
                       {!demo && <select className="ls-course-filter ls-source-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
