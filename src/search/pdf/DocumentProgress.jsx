@@ -5,9 +5,9 @@ export function DocumentProgress({ resources, pdf, canIndex }) {
   if (!pdf.status || !resources.length) return null;
   const coverage = documentCoverage(resources, pdf.status);
   const current = resources.find(resource => resource.id === pdf.currentResource);
-  return <div className="ls-document-progress">
+  return <div className={`ls-document-progress ${coverage.indexed === coverage.total && !current ? 'is-complete' : ''}`}>
     <p className="ls-coverage" role="status">
-      {coverage.indexed} of {coverage.total} documents indexed in this search scope
+      {coverage.indexed} of {coverage.total} documents indexed
       {!pdf.enabled ? ' · indexing paused' : ''}
       {coverage.pending ? ` · ${coverage.pending} pending` : ''}
       {coverage.failures.length ? ` · ${coverage.failures.length} failed` : ''}

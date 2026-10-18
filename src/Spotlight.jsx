@@ -136,6 +136,7 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
       <span className="ls-row-copy">
         <span className="ls-row-title"><HighlightText text={resource.title} query={query} /></span>
         <span className="ls-row-meta">
+          <span className="ls-course"><HighlightText text={resource.course} query={query} /></span>
           <span className="ls-type-label"><HighlightText text={resource.type} query={query} /></span>
           {resource.source && <span>{resource.source}</span>}
           {resource.service && <span>{resource.service}</span>}
@@ -152,7 +153,6 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
         {snippet && <span className="ls-row-snippet"><HighlightText text={snippet} query={query} /></span>}
         {query.trim() && <span className="ls-match-reason">{fuzzy ? 'Similar spelling' : matchExplanation(resource, query)}</span>}
       </span>
-      <span className="ls-course"><HighlightText text={resource.course} query={query} /></span>
       <ChevronRight className="ls-chevron" size={16} strokeWidth={1.7} aria-hidden="true" />
     </button>
   );
@@ -387,6 +387,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
               aria-label="Learn Spotlight search"
               transition={{ layout: motionTiming }}
             >
+              <div className="ls-brand"><span className="ls-brand-name"><span className="ls-brand-symbol" aria-hidden="true">s.</span>spotlight<span className="ls-brand-divider" aria-hidden="true">/</span><span className="ls-brand-product">LEARN</span></span><span className="ls-brand-caption">Course library</span></div>
               <SpotlightInput
                 inputRef={inputRef}
                 value={searchValue}
@@ -396,7 +397,6 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                 expanded={expanded}
                 activeId={expanded && searchResults[selectedIndex] ? `ls-option-${selectedIndex}` : undefined}
               />
-              {connection}
               <AnimatePresence initial={false}>
                 {expanded ? (
                   <motion.div
@@ -408,17 +408,20 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                     transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.16, 1, 0.3, 1] }}
                   >
                     {remoteResults === null && <div className="ls-filters" role="group" aria-label="Search filters">
-                      {!demo && <select className="ls-course-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
+                      <div className="ls-filter-modes">
+                      {shortcuts.map((shortcut) => {
+                        const Icon = shortcut.icon;
+                        const active = shortcut.id === 'all' && !demo ? !courseId && !source : isFilterActive(shortcut.id, scope, documents, recent);
+                        return <button key={shortcut.id} className="ls-chip ls-mode" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
+                      })}
+                      </div>
+                      <div className="ls-filter-selectors">
+                      {!demo && <select className="ls-course-filter ls-source-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
                         <option value="">All sources</option>
                         <option value="LEARN">LEARN only</option>
                         <option value="Piazza">Piazza only</option>
                         <option value="Website">Course websites only</option>
                       </select>}
-                      {shortcuts.map((shortcut) => {
-                        const Icon = shortcut.icon;
-                        const active = shortcut.id === 'all' && !demo ? !courseId && !source : isFilterActive(shortcut.id, scope, documents, recent);
-                        return <button key={shortcut.id} className="ls-chip" type="button" aria-pressed={active} onClick={() => selectFilter(shortcut.id)}><Icon size={13} strokeWidth={1.7} aria-hidden="true" />{shortcut.label}</button>;
-                      })}
                       {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setNotesSection(''); setInstructor(''); setSelectedIndex(0); }}>
                         <option value="">All courses</option>
                         {courses.filter((course) => !source || resources.some(resource => resource.courseId === course.id && resource.source === source)).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
@@ -437,7 +440,9 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                         <input aria-label="Instructor for this notes section" value={instructorLabel} maxLength={100} onChange={event => setInstructorLabel(event.target.value)} placeholder="Enter instructor name" />
                         <button className="ls-chip" onClick={() => onLabelNotes(notesSection, instructorLabel)}>Save instructor</button>
                       </label>}
+                      </div>
                     </div>}
+                    {connection}
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
