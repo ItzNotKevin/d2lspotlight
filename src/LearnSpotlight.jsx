@@ -284,7 +284,11 @@ export function LearnSpotlight(props) {
       {pdf.status?.ocrAvailable && handwritingDocuments.length > 0 && <p className="ls-coverage" role="status">Handwriting search is experimental: {handwritingDocuments.reduce((sum, document) => sum + (document.ocr?.scannedPages || 0), 0)} of {handwritingDocuments.reduce((sum, document) => sum + document.totalPages, 0)} PDF pages scanned. Saved OCR text joins normal results; unscanned or misread handwriting may be missing.</p>}
       {learnSearchReady && (index.courseSites || []).some(site => site.enabled && site.partial && (!pdfFilters.courseId || site.courseId === pdfFilters.courseId)) && (!pdfFilters.source || pdfFilters.source === 'Website') && <p className="ls-coverage" role="status">Course website coverage is partial; some pages may be missing from search.</p>}
       <details className="ls-settings" aria-label="Search settings"><summary>Settings</summary>
-      <div className="ls-settings-body">{connection}<h3>Course websites</h3>{sites.settings}<h3>Piazza</h3>{piazza.connection}{combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
+      <div className="ls-settings-body">
+      <details className="ls-settings-group"><summary>LEARN & document indexing</summary><div className="ls-settings-group-body">{connection}</div></details>
+      <details className="ls-settings-group"><summary>Course websites</summary><div className="ls-settings-group-body">{sites.settings}</div></details>
+      <details className="ls-settings-group"><summary>Piazza</summary><div className="ls-settings-group-body">{piazza.connection}</div></details>
+      {combined.choices.map((choice) => <label className="ls-search-context" key={choice.piazza.id}>
       Link Piazza {choice.piazza.name} ({choice.piazza.id}) to LEARN:
       <select aria-label={`Confirm course association for ${choice.piazza.name}`} value="" onChange={(event) => {
         const pairs = { ...(associations.key === associationKey ? associations.pairs : {}), [choice.piazza.id]: event.target.value };

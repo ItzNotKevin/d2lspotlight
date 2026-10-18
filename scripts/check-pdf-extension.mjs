@@ -313,6 +313,8 @@ try {
   await until(() => evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), Boolean, 'Toolbar must reopen through the installed controller');
   await evaluate(page, `${root}.querySelector('[aria-label="Search settings"] summary').click()`);
   await until(() => evaluate(page, `${root}.querySelector('.ls-pdf-courses')?.textContent`), text => text?.includes('1 indexed') && text.includes('STAT 230'), 'Course indexing counts must be displayed');
+  assert.equal(await evaluate(page, `${root}.querySelectorAll('.ls-settings-group').length`), 3, 'Settings must group connected sources');
+  await evaluate(page, `${root}.querySelector('.ls-settings-group > summary').click()`);
   const settingsWheel = await evaluate(page, `(() => {
     const panel = ${root}.querySelector('.ls-settings-body');
     const bounds = panel.getBoundingClientRect();
@@ -544,6 +546,21 @@ try {
   })()`);
   const officeRows = await until(() => evaluate(officePage, `${root}?.querySelector('[role=listbox]')?.textContent`), text => text?.includes('Slide 2') && text.includes('Paragraphs 1–2'), 'Both Office formats must match body text despite generic titles');
   assert.ok(!officeRows.includes('PDF page'), 'Office passage labels must never claim PDF pages');
+  // Verify the refreshed layout at desktop and narrow viewport sizes.
+  for (const width of [1280, 390]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 850, deviceScaleFactor: 1, mobile: false }, officePage);
+    await until(() => evaluate(officePage, `(() => {
+      const panel = ${root}.querySelector('.ls-panel').getBoundingClientRect();
+      const results = ${root}.querySelector('.ls-results').getBoundingClientRect();
+      return panel.left >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight && results.height > 100;
+    })()`), Boolean, 'Search results must stay visible within the viewport');
+    if (process.env.SPOTLIGHT_UI_SCREENSHOT) {
+      const shot = await call('Page.captureScreenshot', { format: 'png' }, officePage);
+      await writeFile(`${process.env.SPOTLIGHT_UI_SCREENSHOT}-${width}.png`, Buffer.from(shot.data, 'base64'));
+    }
+  }
+  await call('Emulation.clearDeviceMetricsOverride', {}, officePage);
+
   await evaluate(officePage, `${root}.querySelector('[role=option]').click()`);
   const officeOpened = await until(() => evaluate(background, `(async () => {
     const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/office-fixture');
