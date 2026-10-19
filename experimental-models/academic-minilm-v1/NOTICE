@@ -1,0 +1,11 @@
+Academic MiniLM v1 is a modified model based on sentence-transformers/all-MiniLM-L6-v2.
+Upstream model: https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+Upstream revision: 1110a243fdf4706b3f48f1d95db1a4f5529b4d41
+Upstream contributors: the Sentence Transformers and MiniLM model authors.
+Upstream license: Apache License, Version 2.0; see LICENSE.
+
+Learn Spotlight modified the model weights through academic retrieval fine-tuning on October 13, 2026.
+The packaged PyTorch checkpoint is the selected first-epoch result.
+The ONNX weights are a dynamically quantized, per-channel export of that modified checkpoint.
+Tokenizer files retain the upstream tokenizer used by the training run.
+This candidate has not been integrated into the Learn Spotlight application.

@@ -1,0 +1,60 @@
+{
+  "status": "offline_candidate_only",
+  "dimensions": 384,
+  "pooling": "mean",
+  "normalize": true,
+  "max_seq_length": 256,
+  "dtype": "q8",
+  "quantization": "dynamic QUInt8 MatMul, per-channel enabled, opset 17",
+  "base_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "checkpoint": "../pytorch",
+  "checkpoint_sha256": {
+    "config.json": "3f5ba89f8ef70f0c828a1046fb83541445e71643fde88b2c91a135fb63655a8b",
+    "config_sentence_transformers.json": "0ea0a1e63b7506688f3e7d1c50d60a01b5d0b4003750e53f07b9a4de9a692207",
+    "model.safetensors": "8cf5b7d72f35665debc55c5bf6267f8a8558a7abdf42ffd516bc3d0870d10fc9",
+    "modules.json": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf",
+    "sentence_bert_config.json": "fc1993fde0a95c24ec6c022539d41cf6e2f7c9721e5415d6fb6897472a9cd4b7",
+    "special_tokens_map.json": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+    "tokenizer.json": "851ca67100d372ca3ae031a6abd168f53489eebfd7d89523f35c5c9b4d372c3c",
+    "tokenizer_config.json": "c128cee663cc23ce44cf253471d2a538d1623c7c3ead5e465b13519a017ca1f0",
+    "vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+    "1_Pooling/config.json": "a19c83805e1ce4174f3fbfec4ac8d3b8dbae0c958f8fd51b80937eb33e0c5335"
+  },
+  "files": {
+    "config.json": {
+      "bytes": 708,
+      "sha256": "4d633e63c2aa1ee5eee9ed72989e8f6328e78fb1447a5ef347ac743e84d2398b"
+    },
+    "tokenizer.json": {
+      "bytes": 711649,
+      "sha256": "851ca67100d372ca3ae031a6abd168f53489eebfd7d89523f35c5c9b4d372c3c"
+    },
+    "tokenizer_config.json": {
+      "bytes": 1464,
+      "sha256": "c128cee663cc23ce44cf253471d2a538d1623c7c3ead5e465b13519a017ca1f0"
+    },
+    "special_tokens_map.json": {
+      "bytes": 695,
+      "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a"
+    },
+    "vocab.txt": {
+      "bytes": 231508,
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+    },
+    "onnx/model_quantized.onnx": {
+      "bytes": 58763208,
+      "sha256": "fe7307eef3cc98708eeeaf13e910df19303b34c958c5672e1e129ae8a93f5524"
+    }
+  },
+  "fp_min_cosine": 0.9999999610414664,
+  "q8_min_cosine": 0.9890404939651489,
+  "browser_verified": false,
+  "app_model_changed": false,
+  "next": "Evaluate quantized retrieval and verify Transformers.js/WASM before a separately authorized app rollout; regenerate all stored vectors and cache keys.",
+  "representation": "legacy-source-text-v2",
+  "full_precision_onnx_included": false,
+  "packaging_changes": [
+    "Replaced absolute checkpoint path in config with a portable model ID; model weights are unchanged."
+  ]
+}

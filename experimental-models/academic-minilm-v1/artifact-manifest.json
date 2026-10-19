@@ -1,0 +1,109 @@
+{
+  "format_version": 1,
+  "model_id": "spotlight-academic-minilm-v1",
+  "status": "experimental_not_integrated",
+  "selected_epoch": 1,
+  "representation": "legacy-source-text-v2",
+  "dimensions": 384,
+  "max_seq_length": 256,
+  "app_model_changed": false,
+  "second_round_training_started": false,
+  "weights": {
+    "pytorch": "pytorch/model.safetensors",
+    "q8_onnx": "browser/onnx/model_quantized.onnx"
+  },
+  "source_weight_sha256": {
+    "pytorch": "8cf5b7d72f35665debc55c5bf6267f8a8558a7abdf42ffd516bc3d0870d10fc9",
+    "q8_onnx": "fe7307eef3cc98708eeeaf13e910df19303b34c958c5672e1e129ae8a93f5524"
+  },
+  "files": {
+    "LICENSE": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "NOTICE": {
+      "bytes": 776,
+      "sha256": "26dcda944aa77db44be589ba160872b2977bf04d6a2dc59293c52f9656414da2"
+    },
+    "README.md": {
+      "bytes": 4110,
+      "sha256": "95a75f824e988bfdf98e2ac5b4bae9cb010b5a9419a1fd192fc1f3accafc1db8"
+    },
+    "browser/candidate-manifest.json": {
+      "bytes": 2715,
+      "sha256": "ff751150bd3fd38eba3596f2693494f53526e8ed4d70977721f5115b574635b7"
+    },
+    "browser/config.json": {
+      "bytes": 708,
+      "sha256": "4d633e63c2aa1ee5eee9ed72989e8f6328e78fb1447a5ef347ac743e84d2398b"
+    },
+    "browser/onnx/model_quantized.onnx": {
+      "bytes": 58763208,
+      "sha256": "fe7307eef3cc98708eeeaf13e910df19303b34c958c5672e1e129ae8a93f5524"
+    },
+    "browser/special_tokens_map.json": {
+      "bytes": 695,
+      "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a"
+    },
+    "browser/tokenizer.json": {
+      "bytes": 711649,
+      "sha256": "851ca67100d372ca3ae031a6abd168f53489eebfd7d89523f35c5c9b4d372c3c"
+    },
+    "browser/tokenizer_config.json": {
+      "bytes": 1464,
+      "sha256": "c128cee663cc23ce44cf253471d2a538d1623c7c3ead5e465b13519a017ca1f0"
+    },
+    "browser/vocab.txt": {
+      "bytes": 231508,
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+    },
+    "pytorch/1_Pooling/config.json": {
+      "bytes": 296,
+      "sha256": "a19c83805e1ce4174f3fbfec4ac8d3b8dbae0c958f8fd51b80937eb33e0c5335"
+    },
+    "pytorch/2_Normalize/.gitkeep": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "pytorch/config.json": {
+      "bytes": 678,
+      "sha256": "3f5ba89f8ef70f0c828a1046fb83541445e71643fde88b2c91a135fb63655a8b"
+    },
+    "pytorch/config_sentence_transformers.json": {
+      "bytes": 199,
+      "sha256": "0ea0a1e63b7506688f3e7d1c50d60a01b5d0b4003750e53f07b9a4de9a692207"
+    },
+    "pytorch/model.safetensors": {
+      "bytes": 90864192,
+      "sha256": "8cf5b7d72f35665debc55c5bf6267f8a8558a7abdf42ffd516bc3d0870d10fc9"
+    },
+    "pytorch/modules.json": {
+      "bytes": 349,
+      "sha256": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf"
+    },
+    "pytorch/sentence_bert_config.json": {
+      "bytes": 53,
+      "sha256": "fc1993fde0a95c24ec6c022539d41cf6e2f7c9721e5415d6fb6897472a9cd4b7"
+    },
+    "pytorch/special_tokens_map.json": {
+      "bytes": 695,
+      "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a"
+    },
+    "pytorch/tokenizer.json": {
+      "bytes": 711649,
+      "sha256": "851ca67100d372ca3ae031a6abd168f53489eebfd7d89523f35c5c9b4d372c3c"
+    },
+    "pytorch/tokenizer_config.json": {
+      "bytes": 1464,
+      "sha256": "c128cee663cc23ce44cf253471d2a538d1623c7c3ead5e465b13519a017ca1f0"
+    },
+    "pytorch/vocab.txt": {
+      "bytes": 231508,
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+    },
+    "training-summary.json": {
+      "bytes": 175607,
+      "sha256": "6681df08eeff4687b1258497f8e392505f6a2d982ad7088bfe634699f795b125"
+    }
+  }
+}
