@@ -109,6 +109,7 @@ function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, exp
           spellCheck="false"
         />
       </div>
+      {value && <button type="button" className="ls-chip" aria-label="Clear search query" title="Clear search query" onClick={() => { onChange(''); inputRef.current?.focus(); }}><X size={14} aria-hidden="true" /></button>}
       <span className="ls-key" aria-hidden="true">ESC</span>
     </div>
   );
