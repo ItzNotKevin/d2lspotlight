@@ -578,6 +578,36 @@ try {
   })()`);
   const officeRows = await until(() => evaluate(officePage, `${root}?.querySelector('[role=listbox]')?.textContent`), text => text?.includes('Slide 2') && text.includes('Paragraphs 1–2'), 'Both Office formats must match body text despite generic titles');
   assert.ok(!officeRows.includes('PDF page'), 'Office passage labels must never claim PDF pages');
+  const selectedTitle = await evaluate(officePage, `${root}.querySelector('.ls-row.is-selected .ls-row-title').textContent`);
+  await evaluate(officePage, `${root}.querySelector('.ls-search-within').click()`);
+  await until(() => evaluate(officePage, `${root}.querySelector('.ls-document-scope strong')?.textContent`), title => title === selectedTitle, 'Search within must identify the selected original document');
+  assert.equal(await evaluate(officePage, `${root}.querySelector('input[type=search]').value`), '', 'Entering document scope starts a new content query');
+  assert.equal(await evaluate(officePage, `${root}.activeElement === ${root}.querySelector('input[type=search]')`), true, 'Entering document scope focuses search');
+  await until(() => evaluate(officePage, `${root}.querySelector('.ls-coverage')?.textContent`), text => text?.includes('1 of 1'), 'Coverage must follow the selected document');
+  async function officeQuery(query) {
+    await evaluate(officePage, `(() => {
+      const input = ${root}.querySelector('input[type=search]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(query)});
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    })()`);
+  }
+  await officeQuery('permutation');
+  await until(() => evaluate(officePage, `Array.from(${root}.querySelectorAll('[role=option] .ls-row-title')).map(row => row.textContent)`), titles => titles.length > 0 && titles.every(title => title === selectedTitle), 'Keyword matches must stay inside one document even when another file in the same course matches');
+  await officeQuery('ways to arrange distinct objects');
+  await until(() => evaluate(officePage, `Array.from(${root}.querySelectorAll('[role=option]')).some(row => row.querySelector('.ls-match-reason')?.textContent.startsWith('Related meaning'))`), Boolean, 'Meaning matches must work inside the selected document');
+  assert.equal(await evaluate(officePage, `Array.from(${root}.querySelectorAll('[role=option] .ls-row-title')).every(row => row.textContent === ${JSON.stringify(selectedTitle)})`), true, 'Meaning matches cannot escape document scope');
+  await evaluate(officePage, `${root}.querySelector('[aria-label="Clear document scope"]').click()`);
+  assert.equal(await evaluate(officePage, `${root}.querySelector('input[type=search]').value`), 'ways to arrange distinct objects', 'Clearing document scope preserves the new query');
+  await officeQuery('cs246 permutation');
+  await until(() => evaluate(officePage, `${root}.querySelector('[role=listbox]').textContent`), text => text.includes('Slide 2') && text.includes('Paragraphs 1–2'), 'Clearing scope restores matches from both Office files');
+  await evaluate(officePage, `${root}.querySelector('.ls-search-within').click()`);
+  await officeQuery('permutation');
+  await evaluate(officePage, `${root}.querySelector('.ls-clear-filters').click()`);
+  assert.equal(await evaluate(officePage, `Boolean(${root}.querySelector('.ls-document-scope'))`), false, 'Clear filters must also remove document scope');
+  assert.equal(await evaluate(officePage, `${root}.querySelector('input[type=search]').value`), 'permutation');
+  await officeQuery('cs246 permutation');
+  await until(() => evaluate(officePage, `${root}.querySelector('[role=listbox]').textContent`), text => text.includes('Slide 2') && text.includes('Paragraphs 1–2'), 'Search still works after all filters are cleared');
+
   await until(() => evaluate(officePage, `Array.from(${root}.querySelectorAll('.ls-settings-group')).map(section => section.open).join(',')`), value => value === 'false,true,false', 'A new tab must restore each saved settings section independently');
 
   // Verify the refreshed layout at desktop and narrow viewport sizes.
@@ -606,7 +636,7 @@ try {
   if (ocrPdfBytes) await checkRealOcr(`${origin}/office-fixture`);
   assert.equal(errors.length, 0, JSON.stringify(errors));
   console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', semanticPassageUi: 'passed', courseSectionInstructorFilters: 'passed',
-    keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
+    keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', searchWithinDocument: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
     courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', clearActiveFilters: 'passed', rememberedSettingsSections: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));
   }

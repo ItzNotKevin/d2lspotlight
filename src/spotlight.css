@@ -183,3 +183,11 @@
   .ls-results { flex: none; max-height: none; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; } }
+
+.ls-result-tools { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.ls-section { flex-wrap: wrap; gap: 10px; }
+.ls-search-within { font-size: 10px; letter-spacing: normal; text-transform: none; background: transparent; }
+.ls-document-scope { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px; border-left: 2px solid var(--ls-accent); background: #f0f2e9; color: #606850; font-size: 11px; }
+.ls-document-scope strong { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ls-ink); }
+.ls-document-scope > span { flex: none; }
+.ls-document-scope .ls-chip { min-height: 28px; padding: 5px; border-color: transparent; background: transparent; }

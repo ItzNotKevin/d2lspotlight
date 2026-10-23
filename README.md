@@ -56,6 +56,8 @@ Open Spotlight on signed-in LEARN and use **Settings → LEARN and documents →
 
 Pin courses under Settings to protect cached text. When the cache fills, older unpinned text can be replaced. **Index this course** restores missing text without clearing other courses up front. Coverage distinguishes pending, failed, and replaced files.
 
+Highlight a document result and choose **Search within document** above the results. Type a new query to search only that file, including related-meaning passages when enabled. The selected document appears above the filters; use its × button or **Clear filters** to return to broader search without losing your new query.
+
 PDF matches open the physical PDF page. PowerPoint matches show a slide number, and Word matches show a paragraph range; both open the original LEARN viewer without automatic navigation to that location.
 
 ### Experimental handwriting search

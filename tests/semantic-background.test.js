@@ -133,3 +133,11 @@ test('model availability is read from bundled assets without starting inference'
     assert.equal(listener({ type: 'semantic-status' }, { id: 'untrusted' }, () => assert.fail('Unauthorized status reply')), undefined);
   } finally { globalThis.fetch = original; }
 });
+
+
+test('document scope sends only the chosen parent ID to meaning search', async () => {
+  reset();
+  saved[CACHE_KEY].resources.push({ ...saved[CACHE_KEY].resources[0], id: 'other-file' });
+  await search({ filters: { documentId: 'notes' } });
+  assert.deepEqual(sent[0].allowedIds, ['notes']);
+});

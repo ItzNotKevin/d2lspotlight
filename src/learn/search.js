@@ -1,9 +1,10 @@
 import { compareDateIntent, prepareSearchQuery, rankResource } from '../search/rank.js';
 import { studyWeight } from '../search/relevance.js';
 
-export function filterResources(resources, { courseId = '', source = '', documents = false, recent = false, history = {}, notesSection = '', instructor = '' } = {}) {
+export function filterResources(resources, { courseId = '', source = '', documents = false, recent = false, history = {}, notesSection = '', instructor = '', documentId = '' } = {}) {
   return resources.filter((resource) => {
-    return (!courseId || resource.courseId === courseId) &&
+    return (!documentId || (resource.resourceId || resource.id) === documentId) &&
+      (!courseId || resource.courseId === courseId) &&
       (!source || resource.source === source) &&
       (!notesSection || resource.notesSection === notesSection) &&
       (!instructor || resource.instructor === instructor) &&
