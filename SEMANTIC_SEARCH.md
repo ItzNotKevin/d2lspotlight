@@ -1,6 +1,6 @@
 # Semantic search setup
 
-Hybrid keyword and local semantic search is available through **Meaning search: on/off** in Spotlight. It searches saved metadata rather than PDF contents or complete Piazza threads. When model assets are installed, it defaults on unless a saved preference explicitly disables it. The preference persists on this device.
+Hybrid keyword and local semantic search is available through **Meaning search: on/off** in Spotlight. It searches saved metadata and bounded passages from cached PDF, PowerPoint, and Word text. Complete Piazza threads are not indexed. When model assets are installed, it defaults on unless a saved preference explicitly disables it. The preference persists on this device.
 
 ## Install and try
 
@@ -44,7 +44,7 @@ The regression query `combinatorics textbook` retrieves a sparse **Enumeration**
 
 ## Next implementation work
 
-A local outline importer and precomputation prototype is now available. It produces focused course/topic/week/reading vectors from supplied text or structured JSON, with model-verified token budgets and reusable binary output. See [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md). Real-outline bundles are used by Spotlight for course relevance and for topic retrieval of study notes with explicit week labels, when course/term/section matches uniquely. The UI labels inferred weekly topics; PDF contents are not indexed.
+A local outline importer and precomputation prototype is now available. It produces focused course/topic/week/reading vectors from supplied text or structured JSON, with model-verified token budgets and reusable binary output. See [OUTLINE_EMBEDDINGS.md](OUTLINE_EMBEDDINGS.md). Real-outline bundles are used by Spotlight for course relevance and for topic retrieval of study notes with explicit week labels, when course/term/section matches uniquely. The UI labels inferred weekly topics separately from matches in extracted document passages.
 
 An initial three-model, eight-field screening benchmark is available. See [benchmarks/README.md](benchmarks/README.md); run `npm run setup:search-models` followed by `npm run benchmark:search-models`. Reports contain separate raw and calibrated hybrid rankings and stay in ignored `benchmark-results/`. This does not switch the installed extension's model or cutoff.
 
@@ -53,7 +53,7 @@ An initial three-model, eight-field screening benchmark is available. See [bench
 3. Measure cold/warm latency, indexing duration, and memory on realistic course collections. Current requests time out at two minutes; completed embeddings remain cached for retries.
 4. Improve indexing scheduling and progress reporting. The initial version indexes up to the first 5,000 saved resources and reports partial coverage beyond that limit. Keyword search continues to cover the complete metadata index. Avoid source-order bias when expanding this cap.
 5. Evaluate the initial ranking blend on realistic queries and tune its weights without reducing exact-title or assignment-identifier accuracy.
-6. Add bounded PDF/full-post extraction only if metadata-level evaluation demonstrates that missing context prevents useful retrieval.
+6. Evaluate semantic passage coverage, latency, and retrieval quality on real documents before expanding the passage budget or adding OCR/full-thread embeddings.
 
 The dependency audit after selecting Transformers.js 4.3.1 still reports the existing one low and two high findings in the project's build tooling. These were present before this setup and remain release work; the newly added runtime's initial advisories were removed by using its patched release.
 
@@ -74,4 +74,15 @@ A bare three-digit course number (including a suffix, such as `246A`) is derived
 
 Run `npm run check:semantic` after installing models. It exercises actual local-model retrieval for ambiguous outlines, course notes requested as textbooks, explicit course constraints, literal-title priority, and unrelated queries, then compares thresholds on the existing 80-query synthetic benchmark. `npm run check:semantic:extension` also checks these intents in the real extension worker.
 
-The 0.4 cutoff remains unchanged: increasing it to 0.45 reduced held-out positive-query hit@5 from 81.25% to 72.92% in this synthetic comparison. This is evidence against a blanket stricter cutoff, not a real-course accuracy guarantee. Related lecture material can still appear for a broad textbook query. Content-based document-role ranking and semantic passage retrieval remain future evaluation work; this update adds no textbook-to-notes synonym rule.
+The 0.4 cutoff remains unchanged: increasing it to 0.45 reduced held-out positive-query hit@5 from 81.25% to 72.92% in this synthetic comparison. This is evidence against a blanket stricter cutoff, not a real-course accuracy guarantee. Related lecture material can still appear for a broad textbook query. Content-based document-role ranking remains future evaluation work; this update adds no textbook-to-notes synonym rule.
+
+
+## Meaning search inside documents
+
+When Meaning search is enabled, cached native PDF, PPTX, and DOCX text also supplies body-only embeddings. Overlapping passages contain at most 600 characters with 100-character overlap and never cross a physical PDF page or Office location. Native extracted text is used; experimental OCR stays in its labelled keyword path.
+
+The current budget is 2,000 passages across cached documents. Quotas are shared across documents and sampled across their contents, so one large book cannot consume the whole budget. Partial passage coverage is reported in the search status. Filtering does not expand that global sample. Passage vectors are prepared lazily for eligible documents and reused from account-scoped IndexedDB; initial preparation can take longer than a keyword search. A model/indexing failure leaves keyword results available.
+
+Passage matches show **Related meaning** and an exact snippet from the selected passage. PDF links use physical pages; Office links retain the original viewer and slide/paragraph label. Multiple chunks from one page are deduplicated, with keyword evidence preferred when both paths find that page. Course, source, document, recent, section, instructor, account, revision, and session constraints remain in force. Clear document text also resets the meaning-search cache so cleared passage vectors cannot be reused.
+
+See [the evaluation guide](benchmarks/SEARCH_EVALUATION.md) for the local query set and report command.

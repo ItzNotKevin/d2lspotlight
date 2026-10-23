@@ -34,7 +34,7 @@ Reload the extension and source tabs, refresh both sources, and enable **Meaning
 ## Limits and next work
 
 - Live Piazza friendly-name detection and the specific Möbius LTI wrapper still require signed-in verification.
-- PDF content extraction is planned, not implemented. Embeddings still see metadata only.
+- Native PDF and Office text is extracted locally. Meaning search includes a bounded sample of cached passages; see [current coverage and limits](SEMANTIC_SEARCH.md).
 - Incoming catalog and outline generation tools are retained. Their generated description vectors/outline bundles are ignored local artifacts, not delivered by Git or connected to live Spotlight ranking. Claims of previously generated coverage in their docs describe the friend's machine, not reproduced collections here.
 - Broader course titles are bundled; known course context can help rank notes but does not establish the topics inside a particular file.
 - Real student relevance, cutoff calibration, first-index latency, and multi-tab browser interaction remain to evaluate.
