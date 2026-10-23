@@ -4,6 +4,7 @@ import { filterResources } from '../../learn/search.js';
 import { semanticConstraintsMatch } from '../hybrid.js';
 import { prepareQuery } from '../rank.js';
 import { resourceText } from './model.js';
+import { MODEL_ID, MODEL_REVISION } from './config.js';
 import { openEmbeddingCache } from './cache.js';
 import { associateCourses } from '../associations.js';
 import { isSearchSender } from '../../message-sender.js';
@@ -67,7 +68,14 @@ export async function clearSemanticCache() {
 
 export function registerSemanticSearch() {
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
-    if (!['semantic-search', 'semantic-cancel'].includes(message?.type) || !isSearchSender(sender, chrome.runtime.id)) return;
+    if (!['semantic-search', 'semantic-cancel', 'semantic-status'].includes(message?.type) || !isSearchSender(sender, chrome.runtime.id)) return;
+    if (message.type === 'semantic-status') {
+      // Read private bundled assets in the extension worker, not the webpage.
+      fetch(chrome.runtime.getURL('dist/model-manifest.json')).then(response => response.ok ? response.json() : null)
+        .then(manifest => reply({ ok: true, available: manifest?.model === MODEL_ID && manifest?.revision === MODEL_REVISION }))
+        .catch(() => reply({ ok: true, available: false }));
+      return true;
+    }
     if (message.type === 'semantic-cancel') {
       if (requests.get((sender.tab?.id ?? 'standalone')) === message.requestId) requests.delete((sender.tab?.id ?? 'standalone'));
       chrome.runtime.sendMessage({ target: 'semantic-offscreen', action: 'cancel',

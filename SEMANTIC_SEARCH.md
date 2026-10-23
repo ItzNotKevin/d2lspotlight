@@ -1,6 +1,6 @@
 # Semantic search setup
 
-Hybrid keyword and local semantic search is the next development priority. The initial implementation is available behind **Meaning search: on/off** in Spotlight. It searches saved metadata rather than PDF contents or complete Piazza threads. It is off by default; the preference persists on this device.
+Hybrid keyword and local semantic search is available through **Meaning search: on/off** in Spotlight. It searches saved metadata rather than PDF contents or complete Piazza threads. When model assets are installed, it defaults on unless a saved preference explicitly disables it. The preference persists on this device.
 
 ## Install and try
 
@@ -18,7 +18,7 @@ No course data is sent to Hugging Face. Model acquisition happens through the de
 
 The content-script overlay sends a query and filters to the service worker. The service worker reads the authoritative saved LEARN/Piazza indices, adds their account scopes, and delegates to an offscreen extension document. That document owns a module worker containing Transformers.js. The overlay bundle contains no model runtime.
 
-Each resource has two views: its title alone, and natural text combining its title, module path or Piazza snippet, descriptive course name, service, and aliases. Encoded course labels, bare course codes, field labels, and technical file-type labels are excluded from the embedding input; course identity and resource types still apply through filters and strict identifier matching. Each view has its own mean-pooled, normalized 384-dimensional embedding in extension-origin IndexedDB. Keys include the encoding version, model revision, source, account, resource ID, and view; a SHA-256 text hash detects changes. New/changed views are embedded again, and obsolete entries are pruned when the corpus changes. Unchanged vectors are reused after restarting the worker or Chrome. Two views increase the initial embedding work and vector storage compared with the initial single-vector setup.
+Each resource has two views: its title alone, and natural text combining its title, bounded saved description and snippet, module path, descriptive course name, service, and aliases. Descriptions and snippets are stripped of markup and limited to 600 characters each. Encoded course labels, bare course codes, field labels, and technical file-type labels are excluded from the embedding input; course identity and resource types still apply through filters and strict identifier matching. Each view has its own mean-pooled, normalized 384-dimensional embedding in extension-origin IndexedDB. Keys include the encoding version, model revision, source, account, resource ID, and view; a SHA-256 text hash detects changes. New/changed views are embedded again, and obsolete entries are pruned when the corpus changes. Unchanged vectors are reused after restarting the worker or Chrome. Two views increase the initial embedding work and vector storage compared with the initial single-vector setup.
 
 Queries wait for a 120 ms typing pause. In a subject query such as `inheritance notes`, words such as notes, slides, and textbook act as mild resource preferences instead of required topic words. Notes-only and course/identifier-only queries still require the requested resource words. Keyword ranking weights terms by how rarely they occur in the index; frequency statistics are cached for each resource collection. Semantic query embeddings use the topic words so generic resource words cannot dominate meaning retrieval.
 
@@ -66,3 +66,12 @@ Course associations and weekly filename context now apply to both keyword and se
 ## v0.3.1 generalization update
 
 Natural-language query embeddings now supplement simplified topic embeddings. Course-specific subject rules and professor->annotated rewrites are removed. Optional imported course-description vectors are connected to the worker as a bounded course-relevance boost; they do not establish document contents. See [GENERAL_SEMANTIC_SEARCH.md](GENERAL_SEMANTIC_SEARCH.md) for import/setup and limitations. Earlier descriptions of catalog vectors as unconnected refer to the pre-v0.3.1 state.
+
+
+## Course-number intent and retrieval evaluation
+
+A bare three-digit course number (including a suffix, such as `246A`) is derived from course metadata. `246 outline` can match CS 246 and MATH 246; `cs246 outline` keeps its subject constraint. Incidental numbers in document titles do not establish course identity. Assignment numbers retain their existing meaning.
+
+Run `npm run check:semantic` after installing models. It exercises actual local-model retrieval for ambiguous outlines, course notes requested as textbooks, explicit course constraints, literal-title priority, and unrelated queries, then compares thresholds on the existing 80-query synthetic benchmark. `npm run check:semantic:extension` also checks these intents in the real extension worker.
+
+The 0.4 cutoff remains unchanged: increasing it to 0.45 reduced held-out positive-query hit@5 from 81.25% to 72.92% in this synthetic comparison. This is evidence against a blanket stricter cutoff, not a real-course accuracy guarantee. Related lecture material can still appear for a broad textbook query. Content-based document-role ranking and semantic passage retrieval remain future evaluation work; this update adds no textbook-to-notes synonym rule.

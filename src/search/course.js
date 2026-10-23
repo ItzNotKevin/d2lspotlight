@@ -24,3 +24,10 @@ export function courseText(resource) {
 export function courseEmbeddingResource(resource) {
   return { ...resource, id: String(resource.courseId || resource.course || resource.courseName || '') };
 }
+
+
+// Derive identifiers from course metadata, never from incidental document numbers.
+export function courseNumbers(resource) {
+  const metadata = [resource.course, resource.courseName, resource.outlineCourseCode, resource.outlineCourseName].filter(Boolean).join(' ');
+  return [...new Set([...metadata.matchAll(/\b[a-z]{2,8}[ _-]*(\d{3}[a-z]?)(?=$|[^a-z0-9])/gi)].map(match => match[1].toLowerCase()))];
+}

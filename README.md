@@ -13,6 +13,8 @@ A Chrome extension for searching Waterloo LEARN resources, Piazza posts, course 
 - **Course websites:** supported public Waterloo CS pages that you explicitly include.
 - **Related meanings:** optional local semantic search, with compatible catalog and outline bundles providing additional course context when available.
 
+Bare course numbers such as `246 outline` search matching courses across subjects; include the subject (`cs246 outline`) to narrow them.
+
 Keyword search supports course-code variants (`CS 246` / `cs246`), assignment aliases (`A2` / `assignment 2` / `hw2`), conservative spelling correction, and ordered topic phrases. Course and source filters narrow results; document search also supports section and saved instructor filters.
 
 ## Build and install
@@ -83,7 +85,7 @@ npm run setup:semantic
 npm run build
 ```
 
-Reload the extension and webpage tabs, then enable **Meaning search**. Keyword matches appear immediately; related-meaning results arrive after a typing pause. Models run locally, and course content stays on the device during inference.
+Reload the extension and webpage tabs. **Meaning search** defaults on when the model is installed; a previously saved off preference is preserved and can be changed in Settings. Keyword matches appear immediately; related-meaning results arrive after a typing pause. Models run locally, and course content stays on the device during inference.
 
 Generated semantic models, catalog vectors, and outline bundles are excluded from Git. A fresh clone does not include another developer’s generated corpus. Obtain compatible artifacts separately or regenerate them using the linked guides:
 

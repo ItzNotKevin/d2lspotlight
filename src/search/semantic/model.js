@@ -12,7 +12,8 @@ export function resourceText(resource, view = 'context') {
   if (view === 'course') return courseText(resource);
   const title = cleanText(resource.title).replace(/\.(?:pdf|docx?|pptx?|html?)$/i, '');
   if (view === 'title') return title || resourceText(resource);
-  const values = [title, cleanText(resource.path).slice(0, 800), courseText(resource),
+  const evidence = value => cleanText(String(value || '').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ')).slice(0, 600);
+  const values = [title, evidence(resource.description), evidence(resource.snippet), cleanText(resource.path).slice(0, 800), courseText(resource),
     cleanText(resource.service), ...(resource.aliases || []).map(cleanText), ...resourceContext(resource).aliases.filter(alias => alias !== 'lecture notes' && alias !== 'lecture slides notes')];
   const seen = new Set();
   return values.filter((value) => {
