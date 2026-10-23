@@ -1,3 +1,4 @@
+import { DiagnosticsReport } from '../DiagnosticsReport.jsx';
 import { subscribeStorageChanges } from '../extension-context.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { emptyIndex } from '../learn/cache.js';
@@ -119,7 +120,7 @@ export function usePiazzaIndex(isOpen) {
       {index.accountId && <button className="ls-chip" onClick={clear}>Clear Piazza data</button>}
       {!!diagnostics.length && <button className="ls-chip" onClick={() => setShowDiagnostics((value) => !value)}>{showDiagnostics ? 'Hide' : 'Show'} Piazza diagnostics</button>}
     </div>
-    {showDiagnostics && <textarea className="ls-diagnostics" aria-label="Piazza diagnostics" readOnly value={JSON.stringify(diagnostics, null, 2)} />}
+    {showDiagnostics && <DiagnosticsReport label="Piazza diagnostics" value={JSON.stringify(diagnostics, null, 2)} />}
   </div>;
   return { index, connection };
 }

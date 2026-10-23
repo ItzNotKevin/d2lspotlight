@@ -353,6 +353,30 @@ try {
   await evaluate(page, `${root}.querySelectorAll('.ls-settings-group > summary')[1].click()`);
   await until(() => evaluate(background, "chrome.storage.local.get(['spotlightSettingsSection:learn', 'spotlightSettingsSection:websites'])"), saved => saved['spotlightSettingsSection:learn'] === true && saved['spotlightSettingsSection:websites'] === true, 'Section preferences must be saved independently');
 
+  await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Show diagnostics').click()`);
+  const diagnosticText = await evaluate(page, `${root}.querySelector('[aria-label="Connection diagnostics"]').value`);
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { globalThis.__copiedDiagnosticReport = text; } } });
+    } });
+  })()`);
+  await evaluate(page, `${root}.querySelector('[aria-label="Copy Connection diagnostics"]').click()`);
+  await until(() => evaluate(page, `${root}.querySelector('[aria-label="Copy Connection diagnostics"]').closest('div').parentElement.textContent`), text => text.includes('Copied.'), 'Copy report must confirm success');
+  const copiedDiagnosticText = await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => globalThis.__copiedDiagnosticReport }))[0].result;
+  })()`);
+  assert.equal(copiedDiagnosticText, diagnosticText, 'Copy report must use exactly the displayed diagnostics');
+  await evaluate(background, `(async () => {
+    const tab = (await chrome.tabs.query({})).find(tab => tab.url === '${origin}/');
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => { navigator.clipboard.writeText = async () => { throw new Error('Clipboard denied'); }; } });
+  })()`);
+  await evaluate(page, `${root}.querySelector('[aria-label="Copy Connection diagnostics"]').click()`);
+  await until(() => evaluate(page, `${root}.querySelector('[aria-label="Copy Connection diagnostics"]').closest('div').parentElement.textContent`), text => text.includes('Report selected.'), 'Blocked clipboard access must offer manual copying');
+  assert.equal(await evaluate(page, `(() => { const report = ${root}.querySelector('[aria-label="Connection diagnostics"]'); return report.selectionStart === 0 && report.selectionEnd === report.value.length; })()`), true);
+  await evaluate(page, `Array.from(${root}.querySelectorAll('button')).find(button => button.textContent === 'Hide diagnostics').click()`);
+  await evaluate(page, `(() => { const shadow = ${root}; shadow.querySelector('.ls-settings-body').scrollTop = 0; shadow.querySelector('.ls-search-connection').scrollTop = 0; })()`);
   const settingsWheel = await evaluate(page, `(() => {
     const panel = ${root}.querySelector('.ls-settings-body');
     const bounds = panel.getBoundingClientRect();
