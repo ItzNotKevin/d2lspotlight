@@ -1,3 +1,4 @@
+import { KeyboardHelp } from './KeyboardHelp.jsx';
 import { canOpenResource } from './services.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -494,7 +495,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} onSearchDocument={demo ? null : searchWithinDocument} documentId={documentId}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
-                    <div className="ls-footer"><span>{footer}</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice || pdf.message || semantic.message}</span></div>
+                    <div className="ls-footer"><span>{footer}</span><KeyboardHelp /><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice || pdf.message || semantic.message}</span></div>
                   </motion.div>
                 ) : null}
               </AnimatePresence>

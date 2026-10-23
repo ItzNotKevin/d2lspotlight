@@ -249,6 +249,15 @@ try {
   await change('input[type=search]', 'permutation');
   const matched = await until(rows, text => text?.includes('PDF page 2') && text.includes('STAT_231'), 'PDF contents must match across courses');
   assert.match(matched, /ordered arrangement/);
+  await evaluate(page, `${root}.querySelector('[aria-label="Keyboard shortcuts"]').focus()`);
+  await evaluate(page, `${root}.querySelector('[aria-label="Keyboard shortcuts"]').click()`);
+  assert.equal(await evaluate(page, `${root}.querySelector('.ls-keyboard-help').open`), true);
+  assert.ok((await evaluate(page, `${root}.querySelector('.ls-keyboard-help-body').textContent`)).includes('Ctrl+Shift+K'));
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, page);
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, page);
+  assert.equal(await evaluate(page, `${root}.querySelector('.ls-keyboard-help').open`), false);
+  assert.equal(await evaluate(page, `${root}.querySelector('input[type=search]').value`), 'permutation', 'Closing shortcut help must not clear the query');
+
   await change('input[type=search]', 'ways to arrange distinct objects');
   await until(() => evaluate(page, `Array.from(${root}.querySelectorAll('[role=option]')).some(row => row.textContent.includes('PDF page 2') && row.querySelector('.ls-match-reason')?.textContent === 'Related meaning · pdf page 2')`), Boolean, 'A paraphrase must find cached PDF body text and label the physical page');
   await change('input[type=search]', 'permutation');
