@@ -36,7 +36,7 @@ The normal build automatically downloads and verifies pinned OCR models if they 
 
 Use **Clear filters** to reset active source, course, document, recent, section, and instructor filters while keeping your search query. Settings remembers which source groups you expand on this device.
 
-Use ↑/↓ to select a result and Enter to open it. Esc clears the query first, then closes Spotlight. If Chrome has not assigned the shortcut, configure it at `chrome://extensions/shortcuts`.
+The keyboard button in the footer shows navigation keys and the default launch shortcuts. Use ↑/↓ to select a result and Enter to open it. Esc clears the query first, then closes Spotlight. If Chrome has not assigned the shortcut, configure it at `chrome://extensions/shortcuts`.
 
 On normal webpages, Spotlight opens as an overlay. On restricted pages, including fresh tabs, the toolbar or shortcut opens a standalone extension window. Launching again reuses that window.
 

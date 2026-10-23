@@ -191,3 +191,18 @@
 .ls-document-scope strong { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ls-ink); }
 .ls-document-scope > span { flex: none; }
 .ls-document-scope .ls-chip { min-height: 28px; padding: 5px; border-color: transparent; background: transparent; }
+
+.ls-footer { position: relative; }
+.ls-keyboard-help { flex: none; }
+.ls-keyboard-help > summary { display: grid; place-items: center; width: 28px; height: 28px; list-style: none; cursor: pointer; border: 1px solid var(--ls-line); border-radius: 4px; color: #606850; }
+.ls-keyboard-help > summary::-webkit-details-marker { display: none; }
+.ls-keyboard-help > summary:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 2px; }
+.ls-keyboard-help[open] > summary { background: #eceee6; }
+.ls-keyboard-help-body { position: absolute; z-index: 2; bottom: calc(100% + 8px); right: 16px; width: min(280px, calc(100% - 32px)); padding: 16px; border: 1px solid var(--ls-line); border-radius: 6px; background: var(--ls-paper); color: var(--ls-ink); box-shadow: 0 6px 24px #24262218; font-size: 11px; line-height: 1.5; }
+.ls-keyboard-help-body strong { font-size: 12px; font-weight: 600; }
+.ls-keyboard-help-body dl { margin: 12px 0; }
+.ls-keyboard-help-body dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 8px 0; }
+.ls-keyboard-help-body dt { flex: none; }
+.ls-keyboard-help-body dd { margin: 0; color: var(--ls-muted); text-align: right; }
+.ls-keyboard-help-body p { margin: 8px 0 0; color: var(--ls-muted); }
+.ls-keyboard-help-body code { overflow-wrap: anywhere; font-size: 10px; }
