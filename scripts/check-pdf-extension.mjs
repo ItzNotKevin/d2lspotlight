@@ -249,6 +249,11 @@ try {
   await change('input[type=search]', 'permutation');
   const matched = await until(rows, text => text?.includes('PDF page 2') && text.includes('STAT_231'), 'PDF contents must match across courses');
   assert.match(matched, /ordered arrangement/);
+  await change('input[type=search]', 'ways to arrange distinct objects');
+  await until(() => evaluate(page, `Array.from(${root}.querySelectorAll('[role=option]')).some(row => row.textContent.includes('PDF page 2') && row.querySelector('.ls-match-reason')?.textContent === 'Related meaning · pdf page 2')`), Boolean, 'A paraphrase must find cached PDF body text and label the physical page');
+  await change('input[type=search]', 'permutation');
+  await until(rows, text => text?.includes('PDF page 2') && text.includes('STAT_231'), 'Keyword results must still work after semantic passage retrieval');
+
   assert.equal(await evaluate(page, `${root}.querySelector('.ls-match-reason')?.textContent`), 'PDF text · page 2', 'Result must explain its PDF passage match');
   await new Promise(resolveWait => setTimeout(resolveWait, 500));
   const preview = await call('Page.captureScreenshot', { format: 'png' }, page);
@@ -600,7 +605,7 @@ try {
   assert.ok(requested.some(url => url.includes('/246/notes.docx')), 'Word must use the supplied course content URL');
   if (ocrPdfBytes) await checkRealOcr(`${origin}/office-fixture`);
   assert.equal(errors.length, 0, JSON.stringify(errors));
-  console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', courseSectionInstructorFilters: 'passed',
+  console.log(JSON.stringify({ automaticExtraction: 'passed', pageSnippets: 'passed', semanticPassageUi: 'passed', courseSectionInstructorFilters: 'passed',
     keyboardPageOpening: opened, officeAutomaticExtraction: 'passed', officeSlideAndParagraphMatches: 'passed', officeViewerOpening: officeOpened, originalResourceHistory: 'passed', offscreenRestartPersistence: 'passed',
     interruptedExitReopening: 'passed', tabSwitchReopening: 'passed', focusedTabFallback: 'passed', fullyClosedLocalShortcutReopening: 'passed', automaticLearnShortcut: 'passed', clearLearnData: 'passed',
     courseSiteDiscovery: 'passed', websiteIndexing: 'passed', websiteSectionOpening: 'passed', websiteRemoval: 'passed', crossTabLoginGate: 'passed', standaloneNewTabSearch: 'passed', collapsedSettings: 'passed', clearActiveFilters: 'passed', rememberedSettingsSections: 'passed', settingsWheelScrolling: 'passed', coursePdfPrioritization: 'passed', persistentPdfFailures: 'passed', individualPdfRetry: 'passed', browserErrors: 0 }, null, 2));

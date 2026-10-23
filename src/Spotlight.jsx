@@ -8,6 +8,7 @@ import { hybridSearch } from './search/hybrid.js';
 import { useSemanticSearch } from './search/semantic/useSemanticSearch.jsx';
 import { sampleResources } from './sampleResources.js';
 import { usePdfSearch } from './search/pdf/usePdfSearch.jsx';
+import { mergePassageMatches } from './search/semantic/passages.js';
 import { mergePdfResults } from './search/pdf/core.js';
 import { filterResources } from './learn/search.js';
 import { matchingSnippet } from './search/snippet.js';
@@ -219,7 +220,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const hasQuery = Boolean(searchValue.trim());
   const expanded = hasQuery || !demo;
   const semantic = useSemanticSearch({ enabled: semanticEnabled && !demo && remoteResults === null,
-    isOpen, resources, query: searchValue, courseId, source, documents, recent, history });
+    isOpen, resources, query: searchValue, courseId, source, documents, recent, history, notesSection, instructor, revision: pdfRevision });
   const filters = useMemo(() => ({ courseId, source, documents, recent, notesSection, instructor }), [courseId, source, documents, recent, notesSection, instructor]);
   const pdf = usePdfSearch({ isOpen: isOpen && pdfSearchEnabled && !demo && remoteResults === null, query: searchValue, filters, resources, revision: pdfRevision, history });
   useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
@@ -233,7 +234,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
 
   const searchResults = useMemo(() => {
     if (remoteResults !== null) return remoteResults;
-    if (!demo) return mergePdfResults(hybridSearch(resources, { query: searchValue, ...filters, history }, semantic.matches), pdf.matches, 100, searchValue);
+    if (!demo) return mergePdfResults(hybridSearch(resources, { query: searchValue, ...filters, history }, semantic.matches), mergePassageMatches(pdf.matches, semantic.passageMatches), 100, searchValue);
     if (!hasQuery) return [];
     return resources.filter((resource) =>
       matches(resource, searchValue) &&
@@ -241,7 +242,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
       (!documents || ['PDF', 'DOC', 'NOTES', 'SLIDES'].includes(resource.type)) &&
       (!recent || resource.recent)
     );
-  }, [resources, courseLabel, documents, hasQuery, recent, scope, searchValue, demo, courseId, source, history, remoteResults, semantic.matches, filters, pdf.matches]);
+  }, [resources, courseLabel, documents, hasQuery, recent, scope, searchValue, demo, courseId, source, history, remoteResults, semantic.matches, semantic.passageMatches, filters, pdf.matches]);
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 

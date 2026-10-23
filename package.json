@@ -26,7 +26,8 @@
     "reparse:outlines": "node scripts/reparse-outlines.mjs",
     "report:outlines": "node scripts/report-outline-coverage.mjs",
     "benchmark:ocr": "node scripts/benchmark-ocr.mjs",
-    "setup:ocr": "node scripts/setup-ocr.mjs"
+    "setup:ocr": "node scripts/setup-ocr.mjs",
+    "evaluate:search": "node scripts/evaluate-search.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "4.3.1",

@@ -13,6 +13,8 @@ Office locations are guidance for finding a passage after opening; automatic Off
 
 Images, handwriting, speaker notes, headers/footers, comments, embedded objects, and linked external content are not searched. Encrypted, damaged, unsupported, or oversized archives fail with a retryable error. Truncated text and textless passages contribute to incomplete-coverage warnings. The formats are recognized from the file extension in LEARN's content URL; legacy metadata is refreshed after upgrading.
 
+With **Meaning search** enabled and its local model installed, cached Office text also supports related-meaning passage matches. These keep the same slide/paragraph locations and viewer links. The global passage budget and partial coverage are described in [Semantic search](SEMANTIC_SEARCH.md).
+
 ## Storage and limits
 
 Extraction runs locally in the extension offscreen document using Chrome's XML parser and streaming decompressor. Downloads use the existing signed-in LEARN origin only, with redirects rejected. No Office contents are sent to another service and no new extension permissions are required.

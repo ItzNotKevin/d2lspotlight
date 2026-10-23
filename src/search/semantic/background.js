@@ -5,6 +5,10 @@ import { semanticConstraintsMatch } from '../hybrid.js';
 import { prepareQuery } from '../rank.js';
 import { resourceText } from './model.js';
 import { MODEL_ID, MODEL_REVISION } from './config.js';
+import { openPdfCache } from '../pdf/cache.js';
+import { documentDownloadUrl } from '../documents.js';
+import { documentPassages, passageMatches } from './passages.js';
+import { notesSection } from '../pdf/core.js';
 import { openEmbeddingCache } from './cache.js';
 import { associateCourses } from '../associations.js';
 import { isSearchSender } from '../../message-sender.js';
@@ -40,14 +44,25 @@ async function snapshot() {
   const rawResources = [[learn, 'LEARN'], [piazza, 'Piazza']].flatMap(([index, source]) => index.accountId
     ? [...index.resources, ...(source === 'LEARN' ? index.siteResources || [] : [])].map((resource) => ({ ...resource, source: resource.source || source, accountId: index.accountId })) : []);
   const learnCourses = new Map((learn.courses || []).map(course => [course.id, course]));
-  const resources = associateCourses(learn.courses || [], piazza.courses || [], rawResources, confirmations[associationKey] || {}).resources.map(resource => {
+  const metadata = associateCourses(learn.courses || [], piazza.courses || [], rawResources, confirmations[associationKey] || {}).resources.map(resource => {
     const course = learnCourses.get(resource.courseId);
-    return course ? { ...resource, outlineCourseCode: course.code, outlineCourseName: course.name } : resource;
+    const labelled = resource.source === 'LEARN' ? { ...resource, notesSection: notesSection(resource), instructor: learn.pdfLabels?.[notesSection(resource)] || '' } : resource;
+    return course ? { ...labelled, outlineCourseCode: course.code, outlineCourseName: course.name } : labelled;
   });
-  const fingerprint = JSON.stringify([learn.generation, piazza.generation,
+  let documents = [];
+  let passageError = false;
+  if (metadata.some(resource => resource.source === 'LEARN' && documentDownloadUrl(resource))) {
+    try {
+      const cache = await openPdfCache();
+      try { documents = await cache.all(); } finally { cache.close(); }
+    } catch { passageError = true; }
+  }
+  const { passages, totals } = documentPassages(metadata, documents);
+  const resources = [...metadata, ...passages];
+  const fingerprint = JSON.stringify([learn.generation, piazza.generation, totals,
     resources.map((resource) => [resource.source, resource.accountId, resource.id, resource.courseId, resource.modifiedAt,
-      resource.outlineCourseCode, resource.outlineCourseName, resourceText(resource)])]);
-  return { resources, history: { ...learn.history, ...piazza.history }, fingerprint };
+      resource.outlineCourseCode, resource.outlineCourseName, resource.pdfPage, resource.documentLocation, resource.pdfPartial, resourceText(resource)])]);
+  return { resources, history: { ...learn.history, ...piazza.history }, fingerprint, passageTotals: totals, passageError };
 }
 
 export async function clearSemanticCache() {
@@ -95,8 +110,10 @@ export function registerSemanticSearch() {
       const before = await snapshot();
       if (!before.resources.length) return { ok: true, matches: [] };
       const filters = message.filters || {};
-      const allowedIds = filterResources(before.resources, { ...filters, history: before.history })
-        .filter((resource) => semanticConstraintsMatch(resource, query)).map((resource) => resource.id);
+      const eligible = filterResources(before.resources.filter(resource => !resource.semanticPassage), { ...filters, history: before.history })
+        .filter(resource => semanticConstraintsMatch(resource, query));
+      const parentIds = new Set(eligible.map(resource => resource.id));
+      const allowedIds = [...parentIds, ...before.resources.filter(resource => resource.semanticPassage && parentIds.has(resource.resourceId)).map(resource => resource.id)];
       if (!allowedIds.length) return { ok: true, matches: [] };
       await ensureDocument();
       if (!current()) return { ok: false, error: 'Search superseded.' };
@@ -104,7 +121,15 @@ export function registerSemanticSearch() {
         client: String((sender.tab?.id ?? 'standalone')), requestId, query, resources: before.resources, allowedIds, fingerprint: before.fingerprint });
       const after = await snapshot();
       if (!current() || after.fingerprint !== before.fingerprint) return { ok: false, error: 'Saved resources changed. Search again.' };
-      return response;
+      if (!response?.ok) return response;
+      const allowed = new Set(allowedIds);
+      const parents = new Set(before.resources.filter(resource => !resource.semanticPassage && allowed.has(resource.id)).map(resource => resource.id));
+      const totalPassages = Object.entries(before.passageTotals).reduce((sum, [id, count]) => sum + (parents.has(id) ? count : 0), 0);
+      const passageIds = new Set(before.resources.filter(resource => resource.semanticPassage).map(resource => resource.id));
+      return { ...response,
+        matches: (response.matches || []).filter(match => !passageIds.has(match.id)),
+        passageMatches: passageMatches(response.matches || [], before.resources.filter(resource => allowed.has(resource.id))),
+        passageCoverage: { indexed: response.indexedPassages || 0, total: totalPassages, unavailable: before.passageError } };
     })().then(reply, () => reply({ ok: false, error: 'Meaning search unavailable. Keyword search still works.' })).finally(() => {
       if (current()) requests.delete((sender.tab?.id ?? 'standalone'));
     });

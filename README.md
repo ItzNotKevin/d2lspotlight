@@ -11,7 +11,7 @@ A Chrome extension for searching Waterloo LEARN resources, Piazza posts, course 
 - **Handwriting in PDFs:** experimental local OCR, including handwritten additions on printed pages. Matches link to the original physical PDF page.
 - **Piazza posts:** saved titles, snippets, folders, and links from classes you refresh. Attachments and full discussion threads are not indexed.
 - **Course websites:** supported public Waterloo CS pages that you explicitly include.
-- **Related meanings:** optional local semantic search, with compatible catalog and outline bundles providing additional course context when available.
+- **Related meanings:** optional local semantic search over metadata and cached PDF/Office passages, with compatible catalog and outline bundles providing additional course context when available.
 
 Bare course numbers such as `246 outline` search matching courses across subjects; include the subject (`cs246 outline`) to narrow them.
 
@@ -106,6 +106,8 @@ Spotlight checks your LEARN login before searching saved LEARN resources, docume
 
 Service shortcuts preserve context: verified ordinary links can open directly, while instruction pages and context-dependent LTI launches retain the LEARN route. Live Möbius launch behavior still needs account-specific validation.
 
+For a repeatable local search check, start with the [24-query evaluation set and guide](benchmarks/SEARCH_EVALUATION.md). Replace its synthetic examples with your own queries in an ignored local file.
+
 ## Development and validation
 
 ```sh
@@ -113,6 +115,8 @@ npm test
 npm run build
 git diff --check
 ```
+
+GitHub Actions runs `npm ci`, `npm test`, and whitespace checks on pull requests and pushes to `main`, using Node.js 24. Model-dependent evaluation and browser checks run separately after local setup.
 
 Additional browser checks are available after building:
 

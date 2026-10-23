@@ -152,6 +152,45 @@ try {
       if (query.startsWith('cs246')) assert.ok(!ids.includes('math-outline'), 'Explicit subjects remain strict.');
       console.log(JSON.stringify({ query, extensionIntentRetrieval: 'passed', matches: ids }));
     }
+    await call('Runtime.evaluate', { expression: `(async () => {
+      const key = 'learnSpotlightIndexV1', index = (await chrome.storage.local.get(key))[key];
+      const resource = { id: 'memory', title: 'Week 4', course: 'CS246', courseId: 'cs246', path: 'Lectures', type: 'PDF',
+        pdfUrl: 'https://learn.uwaterloo.ca/content/memory.pdf', url: 'https://learn.uwaterloo.ca/content/memory.pdf' };
+      const office = { ...resource, id: 'memory-office', type: 'DOC', documentFormat: 'DOCX',
+        documentUrl: 'https://learn.uwaterloo.ca/content/memory.docx', url: 'https://learn.uwaterloo.ca/d2l/le/content/246/viewContent/4/View' };
+      await chrome.storage.local.set({ [key]: { ...index, resources: [...index.resources, resource, office],
+        history: { memory: 1 }, pdfLabels: { [JSON.stringify(['cs246', 'Lectures'])]: 'Example instructor' } } });
+      const db = await new Promise(resolve => { const request = indexedDB.open('spotlight-pdf-v1', 1); request.onupgradeneeded = () => request.result.createObjectStore('documents', { keyPath: 'id' }); request.onsuccess = () => resolve(request.result); });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('documents', 'readwrite'), store = tx.objectStore('documents');
+        const text = 'Dynamic allocation reserves storage on the heap. Each allocation must have a matching deallocation. Ownership determines which object releases that storage. RAII releases acquired resources in a destructor, preventing leaks.';
+        for (const item of [resource, office]) store.put({ id: item.id, accountId: index.accountId,
+          revision: item.documentFormat ? JSON.stringify([item.documentUrl, item.modifiedAt, item.documentFormat]) : JSON.stringify([item.pdfUrl, item.modifiedAt]),
+          pages: [{ page: 4, text, ...(item.documentFormat ? { location: 'Paragraphs 8–10' } : {}) }], chars: text.length, totalPages: 4 });
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      }); db.close();
+    })()`, awaitPromise: true }, sessionId);
+    async function passageSearch(filters = {}) {
+      const result = await call('Runtime.evaluate', { expression: `(async () => {
+        const tab = (await chrome.tabs.query({})).find(tab => tab.url?.startsWith('${origin}'));
+        return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async filters =>
+          chrome.runtime.sendMessage({ type: 'semantic-search', requestId: 'passage-fixture', query: 'cs246 how to manage memory', filters }), args: [${JSON.stringify(filters)}] }))[0].result;
+      })()`, awaitPromise: true, returnByValue: true }, sessionId);
+      assert.equal(result.result.value?.ok, true, JSON.stringify(result));
+      return result.result.value;
+    }
+    const passages = await passageSearch();
+    assert.equal(passages.passageMatches.find(match => match.resourceId === 'memory')?.url, 'https://learn.uwaterloo.ca/content/memory.pdf#page=4');
+    assert.equal(passages.passageMatches.find(match => match.resourceId === 'memory-office')?.documentLocation, 'Paragraphs 8–10');
+    assert.equal(passages.passageMatches.find(match => match.resourceId === 'memory-office')?.url, 'https://learn.uwaterloo.ca/d2l/le/content/246/viewContent/4/View');
+    assert.equal(passages.passageCoverage.indexed, 2);
+    assert.equal((await passageSearch({ source: 'Piazza' })).passageMatches?.length || 0, 0);
+    assert.equal((await passageSearch({ instructor: 'Other instructor' })).passageMatches?.length || 0, 0);
+    const recent = await passageSearch({ recent: true });
+    assert.deepEqual(recent.passageMatches.map(match => match.resourceId), ['memory'], 'Recent uses the original document history');
+    const section = await passageSearch({ notesSection: JSON.stringify(['cs246', 'Lectures']), instructor: 'Example instructor' });
+    assert.equal(section.passageMatches.length, 2);
+    console.log('Semantic PDF/Office passage links, coverage, source, section, instructor and recent filters passed');
     const clearing = await call('Runtime.evaluate', { expression: `(async () => {
       const tab = (await chrome.tabs.query({})).find(tab => tab.url?.startsWith('${origin}'));
       const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => chrome.runtime.sendMessage({ type: 'learn-index', action: 'clear' }) });

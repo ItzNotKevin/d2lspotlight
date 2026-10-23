@@ -55,7 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     return;
   }
   if (message.action === 'clear-pdf') {
-    clearPdfCache().then(() => reply({ ok: true, index: null }), () => reply({ ok: false, error: 'Could not clear PDF text.' }));
+    clearPdfCache().then(() => clearSemanticCache()).then(() => reply({ ok: true, index: null }), () => reply({ ok: false, error: 'Could not clear PDF text.' }));
     return true;
   }
   updateIndex(indexStore, message.action, message.payload).then(

@@ -1,0 +1,47 @@
+{
+  "description": "Authored, synthetic examples. Replace these locally with queries and expected resources from your own courses; these are not live Waterloo results.",
+  "resources": [
+    {"id":"cs-outline","title":"Course outline","course":"CS246","courseId":"cs246","source":"LEARN","type":"LINK","path":"Getting started","url":"https://learn.uwaterloo.ca/d2l/le/content/246/viewContent/1/View"},
+    {"id":"math-outline","title":"Course outline","course":"MATH246","courseId":"math246","source":"LEARN","type":"LINK","path":"Getting started","url":"https://learn.uwaterloo.ca/d2l/le/content/1246/viewContent/1/View"},
+    {"id":"cs-notes","title":"Course Notes","description":"A complete course reference with chapters, worked examples and exercises for object oriented software development.","course":"CS246","courseId":"cs246","source":"LEARN","type":"PDF","path":"Course materials","url":"https://learn.uwaterloo.ca/content/cs246-notes.pdf","pdfUrl":"https://learn.uwaterloo.ca/content/cs246-notes.pdf"},
+    {"id":"math-book","title":"Enumeration","description":"Counting arrangements and selections, with worked examples and exercises.","course":"MATH239","courseId":"math239","source":"LEARN","type":"PDF","path":"Course Notes","url":"https://learn.uwaterloo.ca/content/math239-notes.pdf","pdfUrl":"https://learn.uwaterloo.ca/content/math239-notes.pdf"},
+    {"id":"memory","title":"Week 4","course":"CS246","courseId":"cs246","source":"LEARN","type":"PDF","path":"Lectures","url":"https://learn.uwaterloo.ca/content/week4.pdf","pdfUrl":"https://learn.uwaterloo.ca/content/week4.pdf"},
+    {"id":"methods","title":"Week 5","course":"CS246","courseId":"cs246","source":"LEARN","type":"SLIDES","documentFormat":"PPTX","path":"Lectures","documentUrl":"https://learn.uwaterloo.ca/content/week5.pptx","url":"https://learn.uwaterloo.ca/d2l/le/content/246/viewContent/5/View"},
+    {"id":"conditional","title":"Week 6","course":"STAT230","courseId":"stat230","source":"LEARN","type":"DOC","documentFormat":"DOCX","path":"Lectures","documentUrl":"https://learn.uwaterloo.ca/content/week6.docx","url":"https://learn.uwaterloo.ca/d2l/le/content/230/viewContent/6/View"},
+    {"id":"a2","title":"Assignment 2 clarification","course":"CS246","courseId":"cs246","source":"Piazza","type":"POST","path":"Assignments","url":"https://piazza.com/class/example/post/2"},
+    {"id":"other-memory","title":"Week 4","course":"CS245","courseId":"cs245","source":"LEARN","type":"PDF","path":"Lectures","url":"https://learn.uwaterloo.ca/content/other.pdf","pdfUrl":"https://learn.uwaterloo.ca/content/other.pdf"}
+  ],
+  "documents": [
+    {"resourceId":"memory","pages":[{"page":4,"text":"Dynamic allocation reserves storage on the heap. Each allocation must have a matching deallocation. Ownership determines which object releases that storage. RAII releases acquired resources in a destructor, preventing leaks when execution leaves a scope."}]},
+    {"resourceId":"methods","pages":[{"page":2,"location":"Slide 2","text":"Virtual dispatch selects an overridden member function based on the dynamic type of an object. A base-class pointer can invoke derived-class behavior at runtime."}]},
+    {"resourceId":"conditional","pages":[{"page":1,"location":"Paragraphs 1–3","text":"Conditional probability restricts the sample space to outcomes where the conditioning event occurs. P(A given B) equals P(A intersection B) divided by P(B), provided P(B) is positive."}]},
+    {"resourceId":"math-book","pages":[{"page":12,"text":"A permutation is an ordered arrangement of distinct objects. There are n factorial ways to arrange n distinct objects in a row. Combinations select a subset without regard to order."}]},
+    {"resourceId":"other-memory","pages":[{"page":3,"text":"Dynamic allocation reserves storage on the heap. Each allocation must have a matching deallocation."}]}
+  ],
+  "queries": [
+    {"text":"246 outline","relevant":["cs-outline","math-outline"]},
+    {"text":"cs246 outline","relevant":["cs-outline"]},
+    {"text":"math246 outline","relevant":["math-outline"]},
+    {"text":"textbook","relevant":["cs-notes","math-book"]},
+    {"text":"cs246 textbook","relevant":["cs-notes"]},
+    {"text":"math239 textbook","relevant":["math-book"]},
+    {"text":"cs246 a2","relevant":["a2"]},
+    {"text":"cs246 assn 2","relevant":["a2"]},
+    {"text":"how to manage memory","relevant":["memory"]},
+    {"text":"cs246 releasing storage after allocation","relevant":["memory"]},
+    {"text":"cs246 preventing resource leaks","relevant":["memory"]},
+    {"text":"cs246 choosing a method at runtime","relevant":["methods"]},
+    {"text":"cs246 derived class behavior","relevant":["methods"]},
+    {"text":"math239 ways to arrange objects in a row","relevant":["math-book"]},
+    {"text":"math239 permutations","relevant":["math-book"]},
+    {"text":"stat230 probability given another event","relevant":["conditional"]},
+    {"text":"stat230 restricting the sample space","relevant":["conditional"]},
+    {"text":"course outline","relevant":["cs-outline","math-outline"]},
+    {"text":"cs246 outline","filters":{"source":"Piazza"},"relevant":[]},
+    {"text":"cs246 textbook","filters":{"source":"Website"},"relevant":[]},
+    {"text":"cs247 outline","relevant":[]},
+    {"text":"submarine engine repair","relevant":[]},
+    {"text":"cs246 a99","relevant":[]},
+    {"text":"stat230 a2","relevant":[]}
+  ]
+}

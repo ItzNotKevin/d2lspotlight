@@ -4,6 +4,7 @@ import { openEmbeddingCache } from './cache.js';
 import { cacheKey, cosineSimilarity, embeddingFor } from './model.js';
 import { courseEmbeddingResource, courseText } from '../course.js';
 import { courseQueryText, semanticQueryText, semanticNaturalQuery } from '../rank.js';
+import { MAX_PASSAGES } from './passages.js';
 import { normalizedCourseScore } from '../intent.js';
 
 env.allowRemoteModels = false;
@@ -52,18 +53,22 @@ async function search(message) {
   const current = () => latest.get(message.client) === message.id;
   if (!current()) throw new Error('Search superseded.');
   cache ||= await openEmbeddingCache();
-  const corpus = message.resources.slice(0, MAX_RESOURCES);
+  const metadata = message.resources.filter(resource => !resource.semanticPassage).slice(0, MAX_RESOURCES);
+  const passages = message.resources.filter(resource => resource.semanticPassage).slice(0, MAX_PASSAGES);
+  const corpus = [...metadata, ...passages];
   const allowed = new Set(message.allowedIds);
-  if (indexedFingerprint !== message.fingerprint) {
-    await cache.prune(new Set(corpus.flatMap((resource) => [cacheKey(resource), cacheKey(resource, 'title'),
+  const toIndex = corpus.filter(resource => !resource.semanticPassage || allowed.has(resource.id));
+  const fingerprint = JSON.stringify([message.fingerprint, toIndex.map(resource => resource.id)]);
+  if (indexedFingerprint !== fingerprint) {
+    await cache.prune(new Set(corpus.flatMap((resource) => [cacheKey(resource, resource.semanticPassage ? 'passage' : 'context'), ...(!resource.semanticPassage ? [cacheKey(resource, 'title')] : []),
       ...(courseText(resource) ? [cacheKey(courseEmbeddingResource(resource), 'course')] : [])])));
     const vectors = [];
     const courses = new Map();
     let completed = 0;
-    for (const resource of corpus) {
+    for (const resource of toIndex) {
       if (!current()) throw new Error('Search superseded.');
-      const vector = await embeddingFor(resource, { cache, embed });
-      const titleVector = await embeddingFor(resource, { cache, embed, view: 'title' });
+      const vector = await embeddingFor(resource, { cache, embed, view: resource.semanticPassage ? 'passage' : 'context' });
+      const titleVector = resource.semanticPassage ? vector : await embeddingFor(resource, { cache, embed, view: 'title' });
       let courseVector = null;
       if (courseText(resource)) {
         const course = courseEmbeddingResource(resource);
@@ -77,13 +82,13 @@ async function search(message) {
       vectors.push({ id: resource.id, vector, titleVector, courseVector });
       completed++;
       if (completed % 8 === 0) {
-        self.postMessage({ id: message.id, progress: `${completed} of ${corpus.length} resources ready` });
+        self.postMessage({ id: message.id, progress: `${completed} of ${toIndex.length} resources ready` });
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
     if (!current()) throw new Error('Search superseded.');
     indexedVectors = vectors;
-    indexedFingerprint = message.fingerprint;
+    indexedFingerprint = fingerprint;
   }
   const candidates = indexedVectors.filter((resource) => allowed.has(resource.id));
   if (!current()) throw new Error('Search superseded.');
@@ -110,13 +115,13 @@ async function search(message) {
   const matches = candidates.map(({ id, vector, titleVector, courseVector }) => {
     const resource = resourceById.get(id);
     const titleScore = Math.max(cosineSimilarity(queryVector, vector), cosineSimilarity(queryVector, titleVector), cosineSimilarity(naturalVector, vector), cosineSimilarity(naturalVector, titleVector));
-    const week = resourceWeekEvidence(resource, [queryVector, naturalVector], courseOutlines);
+    const week = resource.semanticPassage ? null : resourceWeekEvidence(resource, [queryVector, naturalVector], courseOutlines);
     return { id, score: Math.max(titleScore, week?.score || 0),
       outlineWeek: week && week.score > titleScore ? { week: week.week, sourceUrl: week.sourceUrl } : undefined,
       courseScore: Math.max(courseQueryVector && courseVector ? cosineSimilarity(courseQueryVector, courseVector) : 0, evidenceScore(resource)) };
   })
     .filter((match) => match.score >= MIN_SIMILARITY).sort((a, b) => b.score + courseBoost(b) - a.score - courseBoost(a)).slice(0, 100);
-  return { matches, indexed: corpus.length, total: message.resources.length, catalogCourses: Object.keys(courseCatalog?.courses || {}).length,
+  return { matches, indexed: metadata.length, total: message.resources.filter(resource => !resource.semanticPassage).length, indexedPassages: toIndex.filter(resource => resource.semanticPassage).length, catalogCourses: Object.keys(courseCatalog?.courses || {}).length,
     outlineCourses: Object.keys(courseOutlines?.courses || {}).length };
 }
 
