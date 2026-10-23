@@ -10,6 +10,7 @@ function cleanText(value) {
 
 export function resourceText(resource, view = 'context') {
   if (view === 'course') return courseText(resource);
+  if (resource.semanticPassage) return cleanText(resource.passageText);
   const title = cleanText(resource.title).replace(/\.(?:pdf|docx?|pptx?|html?)$/i, '');
   if (view === 'title') return title || resourceText(resource);
   const evidence = value => cleanText(String(value || '').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ')).slice(0, 600);

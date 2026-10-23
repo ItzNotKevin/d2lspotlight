@@ -14,6 +14,7 @@ export function studyWeight(resource, query) {
 export function matchExplanation(resource, query) {
   if (!query.trim()) return '';
   if (resource.ocrMatch) return `OCR text · page ${resource.pdfPage} · recognition may contain mistakes`;
+  if (resource.semanticPassage) return `Related meaning · ${documentLocation(resource).toLowerCase()}`;
   if (resource.pdfMatch) return resource.documentFormat ? `${resource.documentFormat} text · ${documentLocation(resource).toLowerCase()} · opens document` : `PDF text · page ${resource.pdfPage}`;
   if (resource.websiteReference) return 'Linked reference · destination contents not searched';
   if (resource.semanticMatch || resource.outlineWeek) return resource.outlineWeek ? 'Suggested by the course outline' : 'Related meaning';
