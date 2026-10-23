@@ -1,5 +1,6 @@
 import { subscribeStorageChanges } from './extension-context.js';
 import React, { useEffect, useRef, useState } from 'react';
+import { DiagnosticsReport } from './DiagnosticsReport.jsx';
 import { Spotlight } from './Spotlight.jsx';
 import { RememberedSection } from './settings/RememberedSection.jsx';
 import { createLearnClient, LEARN_ORIGIN } from './learn/client.js';
@@ -262,7 +263,7 @@ export function LearnSpotlight(props) {
       {pdf.status && !pdf.status.ocrAvailable && <p>Handwriting models are not installed in this build. Printed PDF and Office text remain searchable.</p>}
       {pdf.status?.ocrAvailable && <p>Handwriting joins normal searches automatically. OCR can misread words and symbols; verify matches on the PDF page. Scanning processes up to 8 small region batches at a time, including handwritten additions on printed pages. Use Continue handwriting scan for another batch without reopening Spotlight. Regions are parts of a page; saved regions remain searchable while the rest is scanned.</p>}
       {pdf.status?.documents.filter(document => document.ocr).map(document => <p key={document.id}>{index.resources.find(resource => resource.id === document.id)?.title}: handwriting {handwritingProgress(document)}</p>)}
-      {showDiagnostics && <textarea className="ls-diagnostics" aria-label="Connection diagnostics — copy to share" readOnly value={JSON.stringify({ adapter: 'browser-session-v2', events: diagnostics }, null, 2)} />}
+      {showDiagnostics && <DiagnosticsReport label="Connection diagnostics" value={JSON.stringify({ adapter: 'browser-session-v2', events: diagnostics }, null, 2)} />}
     </div>
   );
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';

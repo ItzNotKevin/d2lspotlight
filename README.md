@@ -127,6 +127,6 @@ npm run check:semantic:extension
 npm run check:pdf:extension
 ```
 
-Automated tests and fixture browser checks do not establish compatibility with every live Waterloo course or Piazza class. Follow [LEARN testing](LEARN_TESTING.md) for signed-in validation. Diagnostics should be shared without cookies, CSRF tokens, private post bodies, or launch credentials.
+Automated tests and fixture browser checks do not establish compatibility with every live Waterloo course or Piazza class. Follow [LEARN testing](LEARN_TESTING.md) for signed-in validation. Use **Copy report** beside an expanded diagnostics report to copy its displayed text. If clipboard access is blocked, the report is selected for manual copying. Diagnostics should be shared without cookies, CSRF tokens, private post bodies, or launch credentials.
 
 [Developer handoff](handoff.md), [integration notes](INTEGRATION_REPORT.md), and [bugs and next steps](BUGS_AND_NEXT_STEPS.md) preserve earlier implementation history and live-validation tasks. Their older version references and planned-feature statements may have been superseded by the current features described above.
