@@ -14,7 +14,8 @@ function toggleOverlay() {
   if (reusable) {
     existing.toggleSpotlight();
   } else {
-    existing?.closeSpotlight?.();
+    // Invalidated extension callbacks can throw; they must not prevent replacement.
+    try { existing?.closeSpotlight?.(); } catch {}
     existing?.remove();
     const previousFocus = document.activeElement;
     const host = document.createElement('div');

@@ -25,6 +25,7 @@ export function LearnSpotlight(props) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [storageBytes, setStorageBytes] = useState(null);
   const [semanticEnabled, setSemanticEnabled] = useState(false);
+  const semanticPreferenceTouched = useRef(false);
   const [verifiedGeneration, setVerifiedGeneration] = useState(null);
   const [accessibleCourses, setAccessibleCourses] = useState([]);
   const [pdfFilters, setPdfFilters] = useState({});
@@ -51,13 +52,22 @@ export function LearnSpotlight(props) {
   useEffect(() => {
     let active = true;
     chrome.storage.local.get(['semanticSearchEnabled', 'localSemanticSearchEnabled', 'spotlightLaunchStatus']).then((saved) => {
-      if (active) setSemanticEnabled(Boolean(saved.semanticSearchEnabled ?? saved.localSemanticSearchEnabled));
+      const preference = saved.semanticSearchEnabled ?? saved.localSemanticSearchEnabled;
+      if (preference !== undefined) {
+        if (active && !semanticPreferenceTouched.current) setSemanticEnabled(Boolean(preference));
+      } else {
+        // Installed models make meaning search available by default. Explicit opt-outs persist.
+        chrome.runtime.sendMessage({ type: 'semantic-status' }).then(response => {
+          if (active && !semanticPreferenceTouched.current) setSemanticEnabled(Boolean(response?.ok && response.available));
+        }).catch(() => {});
+      }
       if (active && saved.spotlightLaunchStatus?.ok === false) setDiagnostics(current => [...current, { stage: 'last overlay launch', ...saved.spotlightLaunchStatus }]);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
 
   function toggleSemanticSearch() {
+    semanticPreferenceTouched.current = true;
     const enabled = !semanticEnabled;
     setSemanticEnabled(enabled);
     chrome.storage.local.set({ semanticSearchEnabled: enabled }).catch(() => {});

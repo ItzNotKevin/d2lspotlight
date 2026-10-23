@@ -1,6 +1,6 @@
 import { normalizeSearchText } from '../services.js';
 import { canonicalSubject, compareResourceDates, dateIntent } from './intent.js';
-import { courseText } from './course.js';
+import { courseText, courseNumbers } from './course.js';
 import { resourceContext, queryIntent, contextualOrder } from './context.js';
 
 const prepared = new WeakMap();
@@ -28,11 +28,13 @@ function prepare(resource) {
   const studyAliases = [];
   if (/\b(?:annotated|lecture|lectures|lec|slides)\b/.test(context)) studyAliases.push('lecture notes');
   if (/\bslides\b/.test(context) || resource.type === 'SLIDES') studyAliases.push('lecture slides notes');
+  const numbers = courseNumbers(resource);
   const values = [resource.title, resource.service, `${resource.course || ''} ${courseText(resource)}`, [...(resource.aliases || []), ...studyAliases].join(' '), resource.path, resource.type, resource.destinationHost, resource.source, inferred.aliases.join(' ')];
   if (resource.source === 'Website' && resource.contentText) values.push(resource.contentText);
   const fields = values.map((value, i) => ({ text: normalizeQuery(value), words: tokens(value), weight: [12, 11, 10, 9, 6, 5, 4, 4, 3, 2][i] }));
+  fields[2].words.push(...numbers);
   const titleAssignments = assignmentIds(resource.title);
-  const data = { fields, courseWords: tokens(courseText(resource)), assignments: titleAssignments.length ? titleAssignments : assignmentIds(resource.path) };
+  const data = { fields, numbers, courseWords: tokens(courseText(resource)), assignments: titleAssignments.length ? titleAssignments : assignmentIds(resource.path) };
   prepared.set(resource, data);
   return data;
 }
@@ -111,6 +113,7 @@ export function semanticNaturalQuery(query) {
     .replace(/\b[a-z]{2,8}[ _-]*\d{2,4}[a-z]?(?=$|[^a-z0-9])/gi, ' ')
     .replace(/\b(?:a|assignment|assignments|assn|hw|homework)[ _:#-]*0*\d+\b/gi, ' ')
     .replace(/\b(?:week|wk|chapter|module|unit|page)[ _:#-]*0*\d+\b/gi, ' ')
+    .replace(/\b\d{3}[a-z]?\b/gi, ' ')
     .replace(/\s+/g, ' ').trim();
 }
 
@@ -147,6 +150,7 @@ export function matchesQueryConstraints(resource, query) {
   if (query.latest && !query.assignments.length && query.words.some(word => ['notes', 'note', 'lecture', 'lectures', 'slides'].includes(word)) && data.assignments.length) return false;
   if (!query.assignments.every((id) => data.assignments.includes(id))) return false;
   return query.words.filter((word) => /\d|\+|#/.test(word)).every((word) => {
+    if (/^\d{3}[a-z]?$/.test(word) && !query.assignments.includes(word)) return data.numbers.includes(word);
     if (/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word) && !/^(?:week|lecture|lec|chapter|unit|module|section|topic|page|slide)s?\d/.test(word)) return data.fields[2].words.includes(word);
     return data.fields.some((field) => field.words.includes(word));
   });

@@ -63,6 +63,15 @@ try {
       }
       assert.equal(open, true, `Spotlight dialog must render: ${JSON.stringify(pageErrors)}`);
     }
+    async function assertMeaningPreference(expected) {
+      let matches = false;
+      for (let attempt = 0; attempt < 40 && !matches; attempt++) {
+        const state = await call('Runtime.evaluate', { expression: `Array.from(document.getElementById('learn-spotlight-root')?.shadowRoot?.querySelectorAll('button') || []).some(button => button.textContent.trim() === 'Meaning search: ${expected}')`, returnByValue: true }, pageSession);
+        matches = state.result.value;
+        if (!matches) await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert.equal(matches, true, `Meaning search should be ${expected}`);
+    }
     let worker;
     for (let attempt = 0; attempt < 30 && !worker; attempt++) {
       worker = (await call('Target.getTargets')).targetInfos.find((target) => target.type === 'service_worker' && target.url.startsWith(`chrome-extension://${id}/`));
@@ -79,9 +88,13 @@ try {
     }
     const injection = await call('Runtime.evaluate', { expression: `(async () => {
       const tab = (await chrome.tabs.query({})).find(tab => tab.url?.startsWith('${origin}'));
-      return chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED', files: ['dist/spotlight.js'] });
+      const state = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () =>
+        Boolean(document.getElementById('learn-spotlight-root')?.shadowRoot?.querySelector('[role=dialog]')) });
+      if (!state[0].result) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED', files: ['dist/spotlight.js'] });
+      return { launch: await chrome.storage.local.get('spotlightLaunchStatus'), state };
     })()`, awaitPromise: true, returnByValue: true }, sessionId);
     assert.equal(injection.exceptionDetails, undefined, JSON.stringify(injection));
+    console.log(JSON.stringify({ semanticFixtureLaunch: injection.result.value }));
     await assertSpotlightOpen();
     await call('Runtime.evaluate', { expression: `chrome.storage.local.set({ learnSpotlightIndexV1: { version: 1, accountId: 'fixture-account', generation: 'fixture', courses: [], resources: [ { id: 'counting', title: 'Combinatorics: permutations and combinations, counting arrangements', course: 'MATH239', courseId: '239', path: '', type: 'PDF' }, { id: 'cpp', title: 'C++ inheritance and virtual destructors', course: 'CS246', courseId: '246', path: '', type: 'PDF' } ], history: {}, failedCourses: [] } })`, awaitPromise: true }, sessionId);
     const result = await call('Runtime.evaluate', { expression: `(async () => {
@@ -95,6 +108,7 @@ try {
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
     assert.equal(result.result.value.ok, true, JSON.stringify(result.result.value));
     assert.equal(result.result.value.matches[0].id, 'counting');
+    await assertMeaningPreference('on');
     let catalogManifest;
     try { catalogManifest = JSON.parse(await readFile(resolve(project, 'dist/catalog/manifest.json'), 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (catalogManifest) assert.equal(result.result.value.catalogCourses, Object.keys(catalogManifest.courses).length, 'Worker must load and verify the packaged catalog');
@@ -119,6 +133,25 @@ try {
       assert.equal(topic.result.value.matches[0]?.outlineWeek?.week, 5);
       console.log(JSON.stringify({ outlineWeekRetrieval: 'passed', ...topic.result.value }));
     }
+    await call('Runtime.evaluate', { expression: `chrome.storage.local.set({ learnSpotlightIndexV1: { version: 1, accountId: 'fixture-account', generation: 'intent-fixture', courses: [], resources: [
+      { id: 'cs-outline', title: 'Course outline', course: 'CS246', courseId: 'cs246', path: '', type: 'PDF' },
+      { id: 'math-outline', title: 'Course outline', course: 'MATH246', courseId: 'math246', path: '', type: 'PDF' },
+      { id: 'wrong-outline', title: 'Course outline', course: 'CS245', courseId: 'cs245', path: '', type: 'PDF' },
+      { id: 'notes', title: 'Course Notes', course: 'CS246', courseId: 'cs246', path: '', type: 'PDF', description: 'Complete course reference with chapters, examples and exercises.' }
+    ], history: {}, failedCourses: [] } })`, awaitPromise: true }, sessionId);
+    for (const [query, expected] of [['246 outline', ['cs-outline', 'math-outline']], ['cs246 textbook', ['notes']]]) {
+      const intent = await call('Runtime.evaluate', { expression: `(async () => {
+        const tab = (await chrome.tabs.query({})).find(tab => tab.url?.startsWith('${origin}'));
+        return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async query =>
+          chrome.runtime.sendMessage({ type: 'semantic-search', requestId: 'intent-fixture', query, filters: {} }), args: [${JSON.stringify(query)}] }))[0].result;
+      })()`, awaitPromise: true, returnByValue: true }, sessionId);
+      assert.equal(intent.result.value?.ok, true, JSON.stringify(intent));
+      const ids = intent.result.value.matches.map(match => match.id);
+      for (const id of expected) assert.ok(ids.includes(id), `${query}: missing ${id}`);
+      assert.ok(!ids.includes('wrong-outline'), 'Course constraints must reject the wrong number.');
+      if (query.startsWith('cs246')) assert.ok(!ids.includes('math-outline'), 'Explicit subjects remain strict.');
+      console.log(JSON.stringify({ query, extensionIntentRetrieval: 'passed', matches: ids }));
+    }
     const clearing = await call('Runtime.evaluate', { expression: `(async () => {
       const tab = (await chrome.tabs.query({})).find(tab => tab.url?.startsWith('${origin}'));
       const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => chrome.runtime.sendMessage({ type: 'learn-index', action: 'clear' }) });
@@ -136,6 +169,7 @@ try {
     if (clearing.exceptionDetails) throw new Error(JSON.stringify(clearing.exceptionDetails));
     assert.equal(clearing.result.value, true, 'Clearing source data must clear persistent model vectors');
     console.log('Source-clear persistent-cache cleanup passed');
+    await call('Runtime.evaluate', { expression: 'chrome.storage.local.set({ semanticSearchEnabled: false })', awaitPromise: true }, sessionId);
     const recovery = await call('Runtime.evaluate', { expression: `(async () => {
       const tab = (await chrome.tabs.query({})).find(tab => tab.url?.startsWith('${origin}'));
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: async () => {
@@ -151,6 +185,7 @@ try {
     })()`, awaitPromise: true, returnByValue: true }, sessionId);
     assert.equal(recovery.exceptionDetails, undefined, JSON.stringify(recovery));
     await assertSpotlightOpen();
+    await assertMeaningPreference('off');
     assert.deepEqual(pageErrors, [], 'Opening Spotlight and replacing a stale extension root must not throw page errors');
     console.log('Spotlight dialog and stale-context recovery passed');
   }

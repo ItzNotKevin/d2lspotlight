@@ -5,7 +5,10 @@ import { MODEL_ID, EMBEDDING_DIMENSIONS, MIN_SIMILARITY } from '../src/search/se
 import { resourceText, cosineSimilarity } from '../src/search/semantic/model.js';
 import { courseQueryText, semanticQueryText } from '../src/search/rank.js';
 import { normalizedCourseScore } from '../src/search/intent.js';
-import { hybridSearch } from '../src/search/hybrid.js';
+import { hybridSearch, semanticConstraintsMatch } from '../src/search/hybrid.js';
+import { semanticNaturalQuery } from '../src/search/rank.js';
+import { benchmark } from '../benchmarks/academic.js';
+import { rankedRows, summarize } from '../benchmarks/evaluate.js';
 
 env.allowRemoteModels = false;
 env.localModelPath = `${resolve(import.meta.dirname, '../semantic-assets')}/`;
@@ -44,4 +47,61 @@ for (const [query, courses] of courseCases) {
   courseChecks.push({ query, course: courses[0], score: similarities[0] });
 }
 console.log(JSON.stringify({ courseChecks }, null, 2));
+
+// Evaluate the shipped model and hybrid constraints together, using ordinary
+// descriptions rather than course-specific synonyms or fabricated similarity scores.
+const intentResources = [
+  { id: 'cs-outline', title: 'Course outline', course: 'CS246' },
+  { id: 'math-outline', title: 'Course outline', course: 'MATH246' },
+  { id: 'other-outline', title: 'Course outline', course: 'CS245' },
+  { id: 'notes', title: 'Course Notes', course: 'CS246', description: 'A comprehensive reference covering the entire course. Chapters, explanations, worked examples and exercises for independent study.' },
+  { id: 'lecture', title: 'Week 3 lecture notes', course: 'CS246', description: 'Slides and annotations from Tuesday’s class.' },
+  { id: 'exact', title: 'Textbook', course: 'MATH246' },
+  { id: 'chemistry', title: 'Laboratory safety', course: 'CHEM120', description: 'Protective equipment and chemical disposal procedures.' }
+].map(item => ({ ...item, type: 'PDF', source: 'LEARN', path: '', courseId: item.course }));
+const intentVectors = [];
+for (const resource of intentResources) {
+  const views = [];
+  for (const view of ['context', 'title']) views.push((await extractor(resourceText(resource, view), { pooling: 'mean', normalize: true })).tolist()[0]);
+  intentVectors.push(views);
+}
+const intentChecks = [];
+for (const [query, expected, excluded] of [
+  ['246 outline', ['cs-outline', 'math-outline'], ['other-outline', 'chemistry']],
+  ['cs246 outline', ['cs-outline'], ['math-outline', 'other-outline']],
+  ['textbook', ['notes', 'exact'], ['chemistry']],
+  ['cs246 textbook', ['notes'], ['exact', 'other-outline', 'chemistry']],
+  ['246 textbook', ['notes', 'exact'], ['other-outline', 'chemistry']],
+  ['submarine engine repair', [], intentResources.map(item => item.id)]
+]) {
+  const queryVector = (await extractor(semanticQueryText(query), { pooling: 'mean', normalize: true })).tolist()[0];
+  const matches = intentResources.map((resource, index) => ({ id: resource.id,
+    score: Math.max(...intentVectors[index].map(vector => cosineSimilarity(queryVector, vector))) }));
+  const results = hybridSearch(intentResources, { query }, matches).map(item => item.id);
+  for (const id of expected) assert.ok(results.includes(id), `${query}: missing ${id}`);
+  for (const id of excluded) assert.ok(!results.includes(id), `${query}: unexpected ${id}`);
+  if (query === 'textbook') assert.equal(results[0], 'exact', 'Literal textbook title must retain priority.');
+  intentChecks.push({ query, results, scores: matches.filter(match => results.includes(match.id)) });
+}
+console.log(JSON.stringify({ intentChecks }, null, 2));
+// Check a stricter cutoff against the existing 80-query benchmark instead of
+// tuning production globally to one successful textbook example.
+const encode = async text => (await extractor(text, { pooling: 'mean', normalize: true })).tolist()[0];
+const benchmarkVectors = [];
+for (const resource of benchmark.resources) benchmarkVectors.push({ resource,
+  context: await encode(resourceText(resource)), title: await encode(resourceText(resource, 'title')) });
+const benchmarkRows = [];
+for (const query of benchmark.queries) {
+  const vector = await encode(semanticQueryText(query.text));
+  const natural = await encode(semanticNaturalQuery(query.text) || semanticQueryText(query.text));
+  benchmarkRows.push({ ...query, scores: benchmarkVectors.filter(item => semanticConstraintsMatch(item.resource, query.text)).map(item => ({
+    id: item.resource.id, score: Math.max(cosineSimilarity(vector, item.context), cosineSimilarity(vector, item.title),
+      cosineSimilarity(natural, item.context), cosineSimilarity(natural, item.title))
+  })) });
+}
+console.log(JSON.stringify({ benchmarkQueries: benchmarkRows.length,
+  thresholdComparison: [...new Set([MIN_SIMILARITY, .45])].map(threshold => ({ threshold,
+    calibration: summarize(rankedRows(benchmark.resources, benchmarkRows.filter(row => row.split === 'calibration'), threshold)),
+    test: summarize(rankedRows(benchmark.resources, benchmarkRows.filter(row => row.split === 'test'), threshold))
+  })) }, null, 2));
 await extractor.dispose();

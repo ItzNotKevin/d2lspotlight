@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerSemanticSearch, clearSemanticCache } from '../src/search/semantic/background.js';
 import { CACHE_KEY, emptyIndex } from '../src/learn/cache.js';
+import { MODEL_ID, MODEL_REVISION } from '../src/search/semantic/config.js';
 import { PIAZZA_CACHE_KEY } from '../src/piazza/cache.js';
 
 let listener;
@@ -111,4 +112,24 @@ test('semantic broker applies the same automatic and confirmed course associatio
   saved['courseAssociations:["account-one","piazza-one"]'] = { 'piazza:math': 'other-section' };
   await search({ filters: { courseId: 'other-section', source: 'Piazza' } });
   assert.deepEqual(sent[0].allowedIds, ['post']);
+});
+
+
+test('model availability is read from bundled assets without starting inference', async () => {
+  const original = globalThis.fetch;
+  try {
+    for (const [manifest, available] of [[{ model: MODEL_ID, revision: MODEL_REVISION }, true], [{ model: 'wrong-model' }, false], [null, false]]) {
+      globalThis.fetch = async url => {
+        assert.equal(url, 'chrome-extension://test-extension/dist/model-manifest.json');
+        return { ok: Boolean(manifest), json: async () => manifest };
+      };
+      const result = await new Promise(resolve => {
+        assert.equal(listener({ type: 'semantic-status' }, sender, resolve), true);
+      });
+      assert.deepEqual(result, { ok: true, available });
+    }
+    globalThis.fetch = async () => { throw new Error('Missing assets'); };
+    assert.deepEqual(await new Promise(resolve => listener({ type: 'semantic-status' }, sender, resolve)), { ok: true, available: false });
+    assert.equal(listener({ type: 'semantic-status' }, { id: 'untrusted' }, () => assert.fail('Unauthorized status reply')), undefined);
+  } finally { globalThis.fetch = original; }
 });
