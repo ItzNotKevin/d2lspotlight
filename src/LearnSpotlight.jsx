@@ -268,6 +268,7 @@ export function LearnSpotlight(props) {
   const footer = index.updatedAt ? `Saved ${new Date(index.updatedAt).toLocaleString()}${index.failedCourses.length ? ' · partial refresh' : ''}` : index.resources.length ? 'Saved partial index · refresh on LEARN' : 'No saved resources yet';
   const learnSearchReady = Boolean(props.isOpen && index.accountId && verifiedGeneration === index.generation);
   const coveragePdfs = learnSearchReady && (!pdfFilters.source || pdfFilters.source === 'LEARN') ? index.resources.filter(resource => isSearchableDocument(resource) && accessibleCourses.includes(resource.courseId)
+    && (!pdfFilters.documentId || resource.id === pdfFilters.documentId)
     && (!pdfFilters.courseId || resource.courseId === pdfFilters.courseId)
     && (!pdfFilters.notesSection || notesSection(resource) === pdfFilters.notesSection)
     && (!pdfFilters.instructor || index.pdfLabels?.[notesSection(resource)] === pdfFilters.instructor)) : [];

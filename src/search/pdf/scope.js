@@ -6,6 +6,7 @@ export function indexingCandidates(index, filters, selectedCourses, target = nul
   return index.resources.filter(resource => isSearchableDocument(resource) && documentDownloadUrl(resource)
         && (!individual || resource.id === target)
         && (individual || selectedCourses === null || selectedCourses.includes(resource.courseId))
+        && (individual || selectedCourses !== null || !filters.documentId || resource.id === filters.documentId)
         && (individual || selectedCourses !== null || !filters.courseId || resource.courseId === filters.courseId)
         && (individual || selectedCourses !== null || !filters.source || filters.source === 'LEARN')
         && (individual || selectedCourses !== null || !filters.notesSection || notesSection(resource) === filters.notesSection)

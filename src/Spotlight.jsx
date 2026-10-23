@@ -80,7 +80,7 @@ function SpotlightPlaceholder({ text }) {
   );
 }
 
-function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, expanded, activeId }) {
+function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, expanded, activeId, searchLabel = 'Search course resources' }) {
   useEffect(() => {
     inputRef.current?.focus();
   }, [inputRef]);
@@ -100,7 +100,7 @@ function SpotlightInput({ inputRef, value, onChange, onKeyDown, placeholder, exp
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
           role="combobox"
-          aria-label="Search course resources"
+          aria-label={searchLabel}
           aria-autocomplete="list"
           aria-expanded={expanded}
           aria-controls={expanded ? 'ls-results' : undefined}
@@ -159,10 +159,15 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
   );
 }
 
-function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect, heading = 'Matching resources', emptyMessage = 'Try another title, course code, or remove a filter.' }) {
+function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect, onSearchDocument, documentId, heading = 'Matching resources', emptyMessage = 'Try another title, course code, or remove a filter.' }) {
+  const selected = results[selectedIndex];
+  const canSearchWithin = onSearchDocument && selected?.source === 'LEARN' && isSearchableDocument(selected) && (selected.resourceId || selected.id) !== documentId;
   return (
     <div className="ls-results" ref={listRef}>
-      <div className="ls-section" aria-hidden="true"><span>{heading}</span><span>{results.length} shown</span></div>
+      <div className="ls-section"><span>{heading}</span><span className="ls-result-tools">
+        {canSearchWithin && <button type="button" className="ls-chip ls-search-within" aria-label={`Search within ${selected.title}`} title={`Search within ${selected.title} · ${selected.course}`} onClick={() => onSearchDocument(selected)}><Search size={12} aria-hidden="true" />Search within document</button>}
+        <span>{results.length} shown</span>
+      </span></div>
       <div id="ls-results" role="listbox" aria-label="Course resources">
         {results.map((resource, index) => (
           <motion.div
@@ -204,6 +209,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const [scope, setScope] = useState('all');
   const [courseId, setCourseId] = useState('');
   const [source, setSource] = useState('');
+  const [documentId, setDocumentId] = useState('');
   const [notesSection, setNotesSection] = useState('');
   const [instructor, setInstructor] = useState('');
   const [instructorLabel, setInstructorLabel] = useState('');
@@ -217,14 +223,16 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
   const backdropRef = useRef(null);
   const keyboardMoved = useRef(false);
   const reducedMotion = useReducedMotion();
+  const scopedDocument = documentId ? resources.find(resource => resource.id === documentId) : null;
+  useEffect(() => { if (documentId && !scopedDocument) setDocumentId(''); }, [documentId, scopedDocument]);
   const hasQuery = Boolean(searchValue.trim());
   const expanded = hasQuery || !demo;
   const semantic = useSemanticSearch({ enabled: semanticEnabled && !demo && remoteResults === null,
-    isOpen, resources, query: searchValue, courseId, source, documents, recent, history, notesSection, instructor, revision: pdfRevision });
-  const filters = useMemo(() => ({ courseId, source, documents, recent, notesSection, instructor }), [courseId, source, documents, recent, notesSection, instructor]);
+    isOpen, resources, query: searchValue, courseId, source, documents, recent, history, notesSection, instructor, documentId, revision: pdfRevision });
+  const filters = useMemo(() => ({ courseId, source, documents, recent, notesSection, instructor, documentId }), [courseId, source, documents, recent, notesSection, instructor, documentId]);
   const pdf = usePdfSearch({ isOpen: isOpen && pdfSearchEnabled && !demo && remoteResults === null, query: searchValue, filters, resources, revision: pdfRevision, history });
   useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
-  const scopedPdfs = useMemo(() => filterResources(resources, { courseId, source }).filter(resource => isSearchableDocument(resource)), [resources, courseId, source]);
+  const scopedPdfs = useMemo(() => filterResources(resources, { courseId, source, documentId }).filter(resource => isSearchableDocument(resource)), [resources, courseId, source, documentId]);
   const sections = [...new Map(scopedPdfs.filter(resource => resource.notesSection).map(resource => [resource.notesSection, resource])).values()];
   const instructors = [...new Set(scopedPdfs.map(resource => resource.instructor).filter(Boolean))].sort();
   useEffect(() => {
@@ -287,8 +295,9 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     setNotice('');
   }
 
-  const hasActiveFilters = scope !== 'all' || Boolean(courseId || source || notesSection || instructor || documents || recent);
+  const hasActiveFilters = scope !== 'all' || Boolean(courseId || source || notesSection || instructor || documents || recent || documentId);
   function clearFilters() {
+    setDocumentId('');
     setScope('all');
     setCourseId('');
     setSource('');
@@ -304,9 +313,24 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     setNotice('Filters cleared.');
   }
 
+  function searchWithinDocument(resource) {
+    setDocumentId(resource.resourceId || resource.id);
+    changeSearch('');
+    if (listRef.current) listRef.current.scrollTop = 0;
+    inputRef.current?.focus();
+  }
+
+  function clearDocumentScope() {
+    setDocumentId('');
+    previousResults.current = { query: searchValue, items: [] };
+    setSelectedIndex(0);
+    inputRef.current?.focus();
+    setNotice('Document scope cleared.');
+  }
+
   function selectFilter(filter) {
     if (filter === 'all' || filter === 'course') setScope(filter);
-    if (filter === 'all') { setCourseId(''); setSource(''); setNotesSection(''); setInstructor(''); }
+    if (filter === 'all') { setDocumentId(''); setCourseId(''); setSource(''); setNotesSection(''); setInstructor(''); }
     if (filter === 'documents') setDocuments((current) => !current);
     if (filter === 'recent') setRecent((current) => !current);
     setSelectedIndex(0);
@@ -371,7 +395,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     }
   }
 
-  const placeholder = hoveredShortcut ? `Search ${hoveredShortcut.toLowerCase()}…` : 'Search your course materials…';
+  const placeholder = scopedDocument ? `Search in ${scopedDocument.title}…` : hoveredShortcut ? `Search ${hoveredShortcut.toLowerCase()}…` : 'Search your course materials…';
   const motionTiming = reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 530, damping: 47 };
 
   return (
@@ -412,6 +436,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                 onChange={changeSearch}
                 onKeyDown={handleInputKeyDown}
                 placeholder={placeholder}
+                searchLabel={scopedDocument ? `Search within ${scopedDocument.title}` : undefined}
                 expanded={expanded}
                 activeId={expanded && searchResults[selectedIndex] ? `ls-option-${selectedIndex}` : undefined}
               />
@@ -426,6 +451,10 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                     transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.16, 1, 0.3, 1] }}
                   >
                     {remoteResults === null && <div className="ls-filters" role="group" aria-label="Search filters">
+                      {scopedDocument && <div className="ls-document-scope" role="group" aria-label="Document search scope">
+                        <span>Searching in</span><strong title={scopedDocument.title}>{scopedDocument.title}</strong>
+                        <button type="button" className="ls-chip" aria-label="Clear document scope" onClick={clearDocumentScope}><X size={13} aria-hidden="true" /></button>
+                      </div>}
                       <div className="ls-filter-modes">
                       {shortcuts.map((shortcut) => {
                         const Icon = shortcut.icon;
@@ -435,13 +464,13 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                       {hasActiveFilters && <button type="button" className="ls-chip ls-clear-filters" onClick={clearFilters}><X size={12} aria-hidden="true" />Clear filters</button>}
                       </div>
                       <div className="ls-filter-selectors">
-                      {!demo && <select className="ls-course-filter ls-source-filter" aria-label="Search source" value={source} onChange={(event) => { setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
+                      {!demo && <select className="ls-course-filter ls-source-filter" aria-label="Search source" value={source} onChange={(event) => { setDocumentId(''); setSource(event.target.value); setCourseId(''); setNotesSection(''); setInstructor(''); }}>
                         <option value="">All sources</option>
                         <option value="LEARN">LEARN only</option>
                         <option value="Piazza">Piazza only</option>
                         <option value="Website">Course websites only</option>
                       </select>}
-                      {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setNotesSection(''); setInstructor(''); setSelectedIndex(0); }}>
+                      {!demo && courses.length > 0 && <select className="ls-course-filter" aria-label="Filter by course" value={courseId} onChange={(event) => { setDocumentId(''); setCourseId(event.target.value); setNotesSection(''); setInstructor(''); setSelectedIndex(0); }}>
                         <option value="">All courses</option>
                         {courses.filter((course) => !source || resources.some(resource => resource.courseId === course.id && resource.source === source)).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                       </select>}
@@ -462,7 +491,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                       </div>
                     </div>}
                     {connection}
-                    <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult}
+                    <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} onSearchDocument={demo ? null : searchWithinDocument} documentId={documentId}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
                     <div className="ls-footer"><span>{footer}</span><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice || pdf.message || semantic.message}</span></div>
