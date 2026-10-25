@@ -32,7 +32,20 @@ npm run evaluate:search -- benchmark-results/my-courses.json > benchmark-results
 
 Inference stays local with remote model loading disabled. The report includes your query text and resource IDs; keep private datasets and reports in ignored `benchmark-results/`. Do not add credentials or authenticated launch tokens to the dataset.
 
-## Initial seed result
+## Compare a search change
+
+Save reports before and after a change using the same dataset and run:
+
+```sh
+node scripts/evaluate-search.mjs benchmark-results/my-courses.json > benchmark-results/before.json
+# Make the search change, then rerun the same dataset:
+node scripts/evaluate-search.mjs benchmark-results/my-courses.json > benchmark-results/after.json
+npm run compare:search -- benchmark-results/before.json benchmark-results/after.json
+```
+
+The comparison lists queries whose first relevant result moved, whose relevant-result count changed, or whose no-answer behavior changed. A query can appear under both improvements and regressions when rank improves but recall falls. Exit status is 0 with no regressions, 1 when regressions exist, and 2 for incompatible reports or invalid input. Dataset hashes and query labels must match; reports generated before hashes were added need to be regenerated. Model changes are allowed so models can be compared on the same examples.
+
+## Recorded baseline
 
 Rechecked October 25, 2026 on v0.8.0 using the installed local model: hit@1 **14/18 (77.8%)**, hit@5 **15/18 (83.3%)**, recall@5 **80.6%**, MRR@5 **0.806**, and no-answer false positives **0/6**. The three misses listed below remain unchanged. This run covers the synthetic seed only; no live account was used. All 254 automated tests passed after adding the metrics.
 
