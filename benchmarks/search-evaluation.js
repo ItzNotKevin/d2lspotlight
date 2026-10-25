@@ -35,7 +35,8 @@ export async function evaluateSearch(data, { embed }) {
   for (const query of data.queries) {
     const vector = await embed(semanticQueryText(query.text));
     const natural = await embed(semanticNaturalQuery(query.text) || semanticQueryText(query.text));
-    const allowed = new Set(filterResources(resources, { ...query.filters, history: data.history || {} }).filter(resource => semanticConstraintsMatch(resource, query.text)).map(resource => resource.id));
+    const filtered = new Set(filterResources(resources, { ...query.filters, history: data.history || {} }).map(resource => resource.id));
+    const allowed = new Set(resources.filter(resource => filtered.has(resource.id) && semanticConstraintsMatch(resource, query.text)).map(resource => resource.id));
     const matches = vectors.filter(({ resource }) => allowed.has(resource.resourceId || resource.id)).map(({ resource, context, title }) => ({ id: resource.id,
       score: Math.max(cosineSimilarity(vector, context), cosineSimilarity(vector, title), cosineSimilarity(natural, context), cosineSimilarity(natural, title)) }));
     const keyword = await searchPdfCache({ all: async () => documents }, { accountId: 'evaluation', resources: resources.filter(resource => resource.source === 'LEARN'), history: data.history || {} }, query.text, query.filters);
@@ -45,7 +46,11 @@ export async function evaluateSearch(data, { embed }) {
     const top5 = [...new Set(results.map(resource => resource.resourceId || resource.id))].slice(0, 5);
     const hits = top5.filter(id => query.relevant.includes(id));
     const firstRelevantRank = top5.findIndex(id => query.relevant.includes(id)) + 1;
-    rows.push({ query: query.text, filters: query.filters || {}, expected: query.relevant, top5,
+    const missing = query.relevant.filter(id => !top5.includes(id)).map(id => ({
+      id, reason: !filtered.has(id) ? 'excluded-by-filters' : !allowed.has(id) ? 'excluded-by-query-constraints' : 'not-in-top-five',
+      hasDocumentText: documents.some(document => document.resourceId === id && document.pages.some(page => page.text.trim())),
+    }));
+    rows.push({ query: query.text, filters: query.filters || {}, expected: query.relevant, top5, missing,
       hitAt1: firstRelevantRank === 1, reciprocalRankAt5: firstRelevantRank ? 1 / firstRelevantRank : 0,
       hit: hits.length > 0, recall: query.relevant.length ? hits.length / query.relevant.length : null,
       unexpectedAnswer: query.relevant.length === 0 && top5.length > 0 });
