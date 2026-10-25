@@ -4,6 +4,8 @@ A Chrome extension for searching Waterloo LEARN resources, Piazza posts, course 
 
 **Current version: 0.8.0.** Includes experimental local handwriting search, resumable scanning, and saved PDF page progress. The interface uses React, Framer Motion, and Lucide icons.
 
+See [next steps](NEXT_STEPS.md) for the current retrieval baseline, live validation checklist, and beta milestone.
+
 ## What you can search
 
 - **LEARN resources:** course names, resource titles, modules, and discovered service links, including Möbius, Marmoset, Crowdmark, and Gradescope.

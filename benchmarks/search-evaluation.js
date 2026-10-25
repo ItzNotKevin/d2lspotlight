@@ -44,11 +44,16 @@ export async function evaluateSearch(data, { embed }) {
     const results = mergePdfResults(metadata, mergePassageMatches(keyword, semantic), 100, query.text);
     const top5 = [...new Set(results.map(resource => resource.resourceId || resource.id))].slice(0, 5);
     const hits = top5.filter(id => query.relevant.includes(id));
-    rows.push({ query: query.text, expected: query.relevant, top5, hit: hits.length > 0, recall: query.relevant.length ? hits.length / query.relevant.length : null,
+    const firstRelevantRank = top5.findIndex(id => query.relevant.includes(id)) + 1;
+    rows.push({ query: query.text, filters: query.filters || {}, expected: query.relevant, top5,
+      hitAt1: firstRelevantRank === 1, reciprocalRankAt5: firstRelevantRank ? 1 / firstRelevantRank : 0,
+      hit: hits.length > 0, recall: query.relevant.length ? hits.length / query.relevant.length : null,
       unexpectedAnswer: query.relevant.length === 0 && top5.length > 0 });
   }
   const positives = rows.filter(row => row.expected.length), negatives = rows.filter(row => !row.expected.length);
   return { queries: rows.length, positiveQueries: positives.length, noAnswerQueries: negatives.length,
+    hitAt1: positives.length ? positives.filter(row => row.hitAt1).length / positives.length : null,
+    meanReciprocalRankAt5: positives.length ? positives.reduce((sum, row) => sum + row.reciprocalRankAt5, 0) / positives.length : null,
     hitAt5: positives.length ? positives.filter(row => row.hit).length / positives.length : null,
     recallAt5: positives.length ? positives.reduce((sum, row) => sum + row.recall, 0) / positives.length : null,
     noAnswerFalsePositiveRate: negatives.length ? negatives.filter(row => row.unexpectedAnswer).length / negatives.length : null, rows };

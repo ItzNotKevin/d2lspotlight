@@ -1,5 +1,7 @@
 # Spotlight search roadmap
 
+**Current priorities:** [NEXT_STEPS.md](NEXT_STEPS.md) supersedes the priority order below. These dated sections are historical; PDF/Office search, semantic passages, and experimental OCR now exist. See README for current capabilities.
+
 Prepared October 3, 2026 from the current code and source research. This is an implementation plan; unchecked items are proposed work, not verified capabilities.
 
 Latest update: v0.3.1 connects imported catalog description vectors as bounded course-relevance evidence and compares original sentences alongside topic queries. Special course/topic and professor/annotated mappings are removed. See GENERAL_SEMANTIC_SEARCH.md; real Fall 2026 outline collection and term/section-aware course-context loading are implemented; explicit week-labelled notes now use matched outline weekly topics; PDF content remains pending.
