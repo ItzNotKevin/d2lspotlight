@@ -25,3 +25,17 @@ test('evaluation distinguishes first-result success and no-answer failures', asy
   assert.deepEqual(report.rows[0].top5, ['outline']);
   assert.deepEqual(report.rows[2].top5, []);
 });
+
+test('miss diagnostics separate filters, query constraints, and retrieval misses', async () => {
+  const resource = { id: 'notes', title: 'Unrelated material', course: 'CS246', courseId: 'cs246', source: 'LEARN', type: 'LINK' };
+  const report = await evaluateSearch({ resources: [resource], documents: [], queries: [
+    { text: 'cs246 outline', filters: { source: 'Piazza' }, relevant: ['notes'] },
+    { text: 'cs247 outline', relevant: ['notes'] },
+    { text: 'submarine engine repair', relevant: ['notes'] },
+  ] }, { embed: async () => [0, 0] });
+  assert.deepEqual(report.rows.map(row => row.missing), [
+    [{ id: 'notes', reason: 'excluded-by-filters', hasDocumentText: false }],
+    [{ id: 'notes', reason: 'excluded-by-query-constraints', hasDocumentText: false }],
+    [{ id: 'notes', reason: 'not-in-top-five', hasDocumentText: false }],
+  ]);
+});

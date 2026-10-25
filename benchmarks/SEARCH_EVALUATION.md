@@ -13,6 +13,8 @@ The command runs the real local embedding model, keyword/hybrid ranking, and doc
 
 ## Use private course examples locally
 
+Reports include the dataset SHA-256 hash, model ID, and run time. Each query's `missing` list identifies expected resources excluded by filters, excluded by query constraints, or absent from the top five. `hasDocumentText` records whether extracted text was supplied for that resource; it does not establish extraction quality. Use these clues to investigate a miss before adjusting ranking.
+
 Copy `search-evaluation.example.json` into an ignored file such as `benchmark-results/my-courses.json`. Keep 20–30 natural queries, including:
 
 - Exact resource names and course/assignment identifiers.
