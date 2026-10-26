@@ -145,6 +145,29 @@ try {
   assert.equal(await evaluate(page, `Boolean(${root}?.querySelector('[role=dialog]'))`), true, 'A duplicate command must not close a locally opened overlay');
   await until(() => evaluate(page, `${root}?.textContent`), text => text?.includes('2 of 2 documents'), 'Automatic PDF indexing must finish');
   assert.equal(await evaluate(page, `${root}.querySelector('[aria-label="Search settings"]').open`), false, 'Maintenance settings must start collapsed');
+  await until(() => evaluate(page, `${root}?.querySelector('.ls-packs')?.textContent`), text => text?.includes('Create your first assignment pack'), 'Assignment packs must load after session verification');
+  await evaluate(page, `(() => {
+    const packs = ${root}.querySelector('.ls-packs');
+    packs.open = true;
+    const input = packs.querySelector('[aria-label="Assignment pack name"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Fixture A2');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const course = packs.querySelector('[aria-label="Assignment pack course"]');
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(course, course.options[1].value);
+    course.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await evaluate(page, `${root}.querySelector('.ls-packs form').requestSubmit()`);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-packs')?.textContent`), text => text?.includes('Assignment pack created.'), 'Creating a pack must persist it');
+  await evaluate(page, `Array.from(${root}.querySelectorAll('.ls-packs button')).find(button => button.textContent === 'Save to assignment').click()`);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-pack')?.textContent`), text => text?.includes('1 saved'), 'Saving the selected result must add one reference');
+  const savedPacks = await evaluate(background, `(async () => {
+    const saved = await chrome.storage.local.get(null);
+    return Object.entries(saved).find(([key]) => key.startsWith('assignmentPacks:v1:'))?.[1];
+  })()`);
+  assert.equal(savedPacks[0].name, 'Fixture A2');
+  assert.equal(savedPacks[0].items.length, 1);
+  assert.equal('url' in savedPacks[0].items[0], false, 'Saved packs must not retain launch URLs');
+  await evaluate(page, `(${root}).querySelector('.ls-packs').open = false`);
   async function checkRealOcr(sourceUrl) {
     callTimeout = 240000;
     const payload = await evaluate(background, `(async () => {

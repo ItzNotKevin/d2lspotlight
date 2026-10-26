@@ -1,3 +1,4 @@
+import { AssignmentPacks } from './packs/AssignmentPacks.jsx';
 import { KeyboardHelp } from './KeyboardHelp.jsx';
 import { canOpenResource } from './services.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -198,7 +199,7 @@ function SearchResultsContainer({ listRef, results, query, selectedIndex, onHove
   );
 }
 
-export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticEnabled = false, pdfSearchEnabled = true, pdfRevision = 0, onFiltersChange, onLabelNotes }) {
+export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = () => {}, resources = sampleResources, demo = true, connection = null, courseLabel = 'MATH 239', footer = 'Sample resources · design preview', courses = [], history = EMPTY_HISTORY, onResourceOpen = () => {}, remoteResults = null, onQueryChange, onSearch, semanticEnabled = false, pdfSearchEnabled = true, pdfRevision = 0, onFiltersChange, onLabelNotes, packStorageKey = null }) {
   const shortcuts = [
     { id: 'all', label: 'All courses', shortLabel: 'All', icon: LayoutGrid },
     ...(demo ? [{ id: 'course', label: courseLabel, shortLabel: 'Course', icon: BookOpen }] : []),
@@ -338,19 +339,21 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
     setSelectedIndex(0);
   }
 
-  function selectResult(index) {
-    if (!searchResults[index]) return;
+  function openResource(resource) {
+    if (!resource) return;
     if (!demo) {
-      if (!canOpenResource(searchResults[index].url)) return;
-      const url = new URL(searchResults[index].url);
+      if (!canOpenResource(resource.url)) return;
+      const url = new URL(resource.url);
       window.open(url.href, '_blank', 'noopener,noreferrer');
-      onResourceOpen(searchResults[index]);
+      onResourceOpen(resource);
       return;
     }
     setNotice('Preview only — links come later');
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(''), 3200);
   }
+
+  function selectResult(index) { openResource(searchResults[index]); }
 
   function handleInputKeyDown(event) {
     if (event.key === 'ArrowDown' && searchResults.length) {
@@ -493,6 +496,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                       </div>
                     </div>}
                     {connection}
+                    {packStorageKey && <AssignmentPacks key={packStorageKey} storageKey={packStorageKey} resources={resources} courses={courses} query={searchValue} courseId={courseId} selected={searchResults[selectedIndex]} onOpen={openResource} />}
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} onSearchDocument={demo ? null : searchWithinDocument} documentId={documentId}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
