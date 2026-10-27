@@ -206,3 +206,12 @@
 .ls-keyboard-help-body dd { margin: 0; color: var(--ls-muted); text-align: right; }
 .ls-keyboard-help-body p { margin: 8px 0 0; color: var(--ls-muted); }
 .ls-keyboard-help-body code { overflow-wrap: anywhere; font-size: 10px; }
+.ls-packs { padding: 10px 20px; border-bottom: 1px solid #ddd; font-size: 13px; }
+.ls-packs summary { cursor: pointer; padding: 5px 0; }
+.ls-packs-body { max-height: 260px; overflow-y: auto; }
+.ls-packs-body p { margin: 8px 0; }
+.ls-pack { margin-top: 12px; }
+.ls-pack strong { display: block; margin-top: 8px; font-size: 12px; }
+.ls-pack-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.ls-pack-controls input, .ls-pack-controls select { max-width: 100%; min-width: 0; padding: 5px; font: inherit; }
+.ls-pack-controls > span { overflow-wrap: anywhere; }

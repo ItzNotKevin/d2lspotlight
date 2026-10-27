@@ -1,6 +1,7 @@
 import { subscribeStorageChanges } from './extension-context.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { DiagnosticsReport } from './DiagnosticsReport.jsx';
+import { packStorageKey } from './packs/core.js';
 import { Spotlight } from './Spotlight.jsx';
 import { RememberedSection } from './settings/RememberedSection.jsx';
 import { createLearnClient, LEARN_ORIGIN } from './learn/client.js';
@@ -279,7 +280,7 @@ export function LearnSpotlight(props) {
     [...(learnSearchReady ? index.resources.filter(resource => accessibleCourses.includes(resource.courseId)) : []).map((resource) => ({ ...resource, source: 'LEARN', notesSection: notesSection(resource), instructor: index.pdfLabels?.[notesSection(resource)] || '' })), ...(learnSearchReady ? (index.siteResources || []).filter(resource => accessibleCourses.includes(resource.courseId)) : []), ...piazza.index.resources], associations.key === associationKey ? associations.pairs : {}), [index, piazza.index, associations, associationKey, learnSearchReady, accessibleCourses]);
   const history = React.useMemo(() => ({ ...index.history, ...piazza.index.history }), [index.history, piazza.index.history]);
 
-  return <Spotlight {...props} resources={combined.resources} courses={combined.courses} history={history}
+  return <Spotlight {...props} packStorageKey={learnSearchReady ? packStorageKey(index.accountId, piazza.index.accountId) : null} resources={combined.resources} courses={combined.courses} history={history}
     pdfRevision={pdf.revision} onFiltersChange={setPdfFilters} onLabelNotes={onLearn ? async (section, name) => {
       try { setIndex(await indexMessage('label-notes', { accountId: index.accountId, section, name })); }
       catch (error) { setMessage(error.message); }

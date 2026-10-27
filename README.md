@@ -60,6 +60,14 @@ Pin courses under Settings to protect cached text. When the cache fills, older u
 
 Highlight a document result and choose **Search within document** above the results. Type a new query to search only that file, including related-meaning passages when enabled. The selected document appears above the filters; use its × button or **Clear filters** to return to broader search without losing your new query.
 
+### Assignment packs
+
+With your LEARN login verified, expand **Assignment packs** to create a named pack for a course. Select a search result, choose a pack and a section, then use **Save to assignment**. Packs group links into Instructions, Notes, Clarifications, and Submit. Saving the same resource again moves it to the chosen section.
+
+Packs appear above ordinary results and can be found by their name and course using the search box and course filter. Expand a pack to open or remove saved resources. Empty packs can be deleted. Pack membership is curated manually; dates and suggested resources are not collected.
+
+Packs stay on this device, separately for each LEARN/Piazza account combination. They save resource references rather than document text or launch URLs. Unavailable resources remain labelled until they reappear in the current index; switching accounts or losing LEARN verification hides the packs. Clearing a source index does not delete pack references.
+
 PDF matches open the physical PDF page. PowerPoint matches show a slide number, and Word matches show a paragraph range; both open the original LEARN viewer without automatic navigation to that location.
 
 ### Experimental handwriting search
