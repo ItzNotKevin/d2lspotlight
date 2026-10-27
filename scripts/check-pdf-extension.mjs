@@ -167,6 +167,30 @@ try {
   assert.equal(savedPacks[0].name, 'Fixture A2');
   assert.equal(savedPacks[0].items.length, 1);
   assert.equal('url' in savedPacks[0].items[0], false, 'Saved packs must not retain launch URLs');
+  await evaluate(page, `(() => {
+    const pack = ${root}.querySelector('.ls-pack');
+    pack.open = true;
+    pack.querySelector('input[name=name]').value = 'Assignment 2';
+    pack.querySelector('form').requestSubmit();
+  })()`);
+  await until(() => evaluate(page, `${root}.querySelector('.ls-pack summary')?.textContent`), text => text?.includes('Assignment 2'), 'Renaming must update the pack');
+  await evaluate(page, `(() => {
+    const select = ${root}.querySelector('.ls-pack select');
+    select.value = 'Submit';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await until(() => evaluate(background, `(async () => {
+    const saved = await chrome.storage.local.get(null);
+    return Object.entries(saved).find(([key]) => key.startsWith('assignmentPacks:v1:'))?.[1]?.[0]?.items[0]?.section;
+  })()`), section => section === 'Submit', 'Moving a saved resource must persist its new section');
+  for (const query of ['stat 230 hw2', 'stat230 a12', '']) {
+    await evaluate(page, `(() => {
+      const input = ${root}.querySelector('input[type=search]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(query)});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await until(() => evaluate(page, `${root}.querySelectorAll('.ls-pack').length`), count => count === (query.includes('a12') ? 0 : 1), 'Pack search must match aliases with strict assignment numbers');
+  }
   await evaluate(page, `(${root}).querySelector('.ls-packs').open = false`);
   async function checkRealOcr(sourceUrl) {
     callTimeout = 240000;
