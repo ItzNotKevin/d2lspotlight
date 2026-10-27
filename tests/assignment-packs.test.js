@@ -37,6 +37,17 @@ test('unavailable references do not reveal saved content or resolve across sourc
   assert.equal(resolvePackItem(item, [resource]), resource);
 });
 
+test('moving saved references works without an available resource and preserves other entries', () => {
+  const packs = updatePacks(create(), { type: 'save', packId: 'a2', section: 'Notes', resource });
+  const both = updatePacks(packs, { type: 'save', packId: 'a2', section: 'Notes', resource: { ...resource, source: 'Piazza' } });
+  const item = both[0].items[0];
+  const moved = updatePacks(both, { type: 'move', packId: 'a2', item, section: 'Submit' });
+  assert.deepEqual(moved[0].items, [{ ...item, section: 'Submit' }, both[0].items[1]]);
+  assert.equal(both[0].items[0].section, 'Notes');
+  assert.throws(() => updatePacks(both, { type: 'move', packId: 'a2', item, section: 'Other' }));
+  assert.deepEqual(updatePacks(both, { type: 'move', packId: 'a2', item: { ...item, id: 'missing' }, section: 'Submit' }), both);
+});
+
 test('search respects available courses and removal preserves other entries', () => {
   const packs = updatePacks(create(), { type: 'save', packId: 'a2', section: 'Notes', resource });
   assert.equal(matchingPacks(packs, 'cs246 a2', [{ id: 'cs246', name: 'CS246' }]).length, 1);

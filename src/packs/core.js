@@ -29,6 +29,11 @@ export function updatePacks(packs, action) {
       return { ...pack, name };
     }
     if (action.type === 'remove') return { ...pack, items: pack.items.filter(item => !(item.source === action.item.source && item.id === action.item.id)) };
+    if (action.type === 'move') {
+      if (!PACK_SECTIONS.includes(action.section)) throw new Error('Choose a section.');
+      return { ...pack, items: pack.items.map(item => item.source === action.item.source && item.id === action.item.id
+        ? { ...item, section: action.section } : item) };
+    }
     if (action.type === 'save') {
       if (!PACK_SECTIONS.includes(action.section)) throw new Error('Choose a section.');
       if (action.resource.courseId !== pack.courseId) throw new Error('Choose a pack for this course.');
