@@ -56,3 +56,17 @@ test('search respects available courses and removal preserves other entries', ()
   assert.equal(updatePacks(packs, { type: 'remove', packId: 'a2', item: packs[0].items[0] })[0].items.length, 0);
   assert.deepEqual(updatePacks(packs, { type: 'delete', packId: 'a2' }), []);
 });
+
+test('pack search understands course spacing and assignment aliases with strict numbers', () => {
+  const courses = [{ id: 'cs246', name: 'CS 246' }, { id: 'cs245', name: 'CS245' }];
+  const packs = [...create(), { id: 'a12', name: 'Assignment 12', courseId: 'cs246', items: [] },
+    { id: 'other', name: 'Homework 2', courseId: 'cs245', items: [] }];
+  for (const query of ['CS246 A2', 'cs 246 assignment 2', 'cs-246 hw2', 'CS_246 assn 2']) {
+    assert.deepEqual(matchingPacks(packs, query, courses).map(pack => pack.id), ['a2']);
+  }
+  assert.deepEqual(matchingPacks(packs, 'a12', courses).map(pack => pack.id), ['a12']);
+  assert.deepEqual(matchingPacks(packs, 'cs245 assignment2', courses).map(pack => pack.id), ['other']);
+  assert.deepEqual(matchingPacks(packs, 'cs24 a2', courses), []);
+  assert.deepEqual(matchingPacks(packs, 'cs246 a2', courses, 'cs245'), []);
+  assert.deepEqual(matchingPacks(packs, 'cs246 a2', []), []);
+});

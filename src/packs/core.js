@@ -46,8 +46,13 @@ export function updatePacks(packs, action) {
 }
 
 export function matchingPacks(packs, query, courses, courseId = '') {
-  const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const normalize = value => String(value).toLowerCase()
+    .replace(/\b(?:assignment|assign|assn|hw|homework|a)[\s_-]*(\d+)\b/g, 'a$1')
+    .replace(/\b([a-z]{2,8})[\s_-]+(\d{2,4}[a-z]?)\b/g, '$1$2')
+    .replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  const words = normalize(query);
   return packs.filter(pack => (!courseId || pack.courseId === courseId)
     && courses.some(course => course.id === pack.courseId)
-    && words.every(word => `${pack.name} ${courses.find(course => course.id === pack.courseId)?.name || ''}`.toLowerCase().includes(word)));
+    && words.every(word => normalize(`${pack.name} ${courses.find(course => course.id === pack.courseId)?.name || ''}`)
+      .some(token => /\d/.test(word) ? token === word : token.includes(word))));
 }
