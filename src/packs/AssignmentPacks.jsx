@@ -69,6 +69,13 @@ export function AssignmentPacks({ storageKey, resources, courses, query, courseI
       </div>}
       {visible.map(pack => <details key={pack.id} className="ls-pack">
         <summary>{courses.find(course => course.id === pack.courseId)?.name} · {pack.name} · {pack.items.length} saved</summary>
+        <form className="ls-pack-controls" onSubmit={event => {
+          event.preventDefault();
+          change({ type: 'rename', packId: pack.id, name: new FormData(event.currentTarget).get('name') });
+        }}>
+          <input key={pack.name} name="name" aria-label={`Rename ${pack.name}`} defaultValue={pack.name} maxLength={100} required />
+          <button className="ls-chip" disabled={busy}>Rename pack</button>
+        </form>
         {PACK_SECTIONS.map(label => <div key={label}>
           <strong>{label}</strong>
           {pack.items.filter(item => item.section === label).map(item => {

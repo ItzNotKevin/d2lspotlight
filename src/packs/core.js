@@ -23,6 +23,11 @@ export function updatePacks(packs, action) {
   if (action.type === 'delete') return packs.filter(pack => pack.id !== action.packId);
   return packs.map(pack => {
     if (pack.id !== action.packId) return pack;
+    if (action.type === 'rename') {
+      const name = String(action.name || '').trim().slice(0, 100);
+      if (!name) throw new Error('Enter a pack name.');
+      return { ...pack, name };
+    }
     if (action.type === 'remove') return { ...pack, items: pack.items.filter(item => !(item.source === action.item.source && item.id === action.item.id)) };
     if (action.type === 'save') {
       if (!PACK_SECTIONS.includes(action.section)) throw new Error('Choose a section.');
