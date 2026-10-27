@@ -183,7 +183,7 @@ try {
     const saved = await chrome.storage.local.get(null);
     return Object.entries(saved).find(([key]) => key.startsWith('assignmentPacks:v1:'))?.[1]?.[0]?.items[0]?.section;
   })()`), section => section === 'Submit', 'Moving a saved resource must persist its new section');
-  for (const query of ['cs 246 hw2', 'cs246 a12', '']) {
+  for (const query of ['stat 230 hw2', 'stat230 a12', '']) {
     await evaluate(page, `(() => {
       const input = ${root}.querySelector('input[type=search]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(query)});
