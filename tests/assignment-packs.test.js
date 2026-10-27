@@ -5,6 +5,15 @@ import { updatePacks, resolvePackItem, matchingPacks, packStorageKey } from '../
 const resource = { id: 'notes', source: 'LEARN', courseId: 'cs246', title: 'Private notes', url: 'https://learn.uwaterloo.ca/' };
 const create = () => updatePacks([], { type: 'create', id: 'a2', name: ' A2 ', courseId: 'cs246' });
 
+test('renaming preserves saved references and rejects blank names', () => {
+  const packs = updatePacks(create(), { type: 'save', packId: 'a2', section: 'Notes', resource });
+  const renamed = updatePacks(packs, { type: 'rename', packId: 'a2', name: ' Assignment 2 ' });
+  assert.deepEqual(renamed[0], { ...packs[0], name: 'Assignment 2' });
+  assert.equal(packs[0].name, 'A2');
+  assert.throws(() => updatePacks(packs, { type: 'rename', packId: 'a2', name: '  ' }));
+  assert.equal(updatePacks(packs, { type: 'rename', packId: 'a2', name: 'x'.repeat(110) })[0].name.length, 100);
+});
+
 test('packs require a name and course and separate account combinations', () => {
   assert.throws(() => updatePacks([], { type: 'create', id: 'a2', name: '  ', courseId: 'cs246' }));
   assert.notEqual(packStorageKey('one', 'piazza'), packStorageKey('two', 'piazza'));
