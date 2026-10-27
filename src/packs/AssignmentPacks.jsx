@@ -82,6 +82,10 @@ export function AssignmentPacks({ storageKey, resources, courses, query, courseI
             const resource = resolvePackItem(item, resources);
             return <div className="ls-pack-controls" key={`${item.source}:${item.id}`}>
               {resource ? <button className="ls-chip" onClick={() => onOpen(resource)}>{resource.title}</button> : <span>Resource unavailable. Check your login or refresh the course.</span>}
+              <select aria-label={`Section for ${resource?.title || 'unavailable resource'} in ${pack.name}`} value={item.section} disabled={busy}
+                onChange={event => change({ type: 'move', packId: pack.id, item, section: event.target.value })}>
+                {PACK_SECTIONS.map(section => <option key={section}>{section}</option>)}
+              </select>
               <button className="ls-chip" disabled={busy} aria-label={`Remove ${resource?.title || 'unavailable resource'} from ${pack.name}`} onClick={() => change({ type: 'remove', packId: pack.id, item })}>Remove</button>
             </div>;
           })}
