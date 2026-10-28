@@ -30,6 +30,8 @@ npm run build
 
 The normal build automatically downloads and verifies pinned OCR models if they are missing. The first uncached build downloads about **389 MiB** and needs internet access. Later builds reuse verified local assets. No separate OCR setup command is required.
 
+For a smaller build without experimental handwriting recognition, use `npm run build:lite` instead. This skips OCR model verification, downloads, and packaging, even if models are cached locally. Printed PDF text, Office text, and installed meaning-search models still work. To enable handwriting later, run `npm run build` and reload the extension. Switching build types replaces the previous `dist/` output.
+
 1. Open `chrome://extensions` and enable **Developer mode**.
 2. Choose **Load unpacked** and select the repository root containing `manifest.json`, rather than `dist/`.
 3. Sign in at `https://learn.uwaterloo.ca`.
