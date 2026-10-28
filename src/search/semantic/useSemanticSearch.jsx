@@ -15,7 +15,7 @@ export function useSemanticSearch({ enabled, isOpen, resources, query, courseId,
     let sent = false;
     const requestId = crypto.randomUUID();
     const identity = { resources, query, courseId, source, documents, recent, history, notesSection, instructor, documentId, revision };
-    setState({ ...identity, matches: EMPTY_MATCHES, message: 'Preparing meaning matches…' });
+    setState({ ...identity, pending: true, matches: EMPTY_MATCHES, message: 'Preparing meaning matches…' });
     const timer = setTimeout(async () => {
       try {
         sent = true;
@@ -47,5 +47,7 @@ export function useSemanticSearch({ enabled, isOpen, resources, query, courseId,
   const current = enabled && isOpen && state?.resources === resources && state?.query === query
     && state?.courseId === courseId && state?.source === source && state?.documents === documents
     && state?.recent === recent && state?.history === history && state?.notesSection === notesSection && state?.instructor === instructor && state?.documentId === documentId && state?.revision === revision;
-  return { matches: current ? state.matches || EMPTY_MATCHES : EMPTY_MATCHES, passageMatches: current ? state.passageMatches || EMPTY_MATCHES : EMPTY_MATCHES, message: current ? state.message : '' };
+  const eligible = enabled && isOpen && query.trim().length >= 3 && prepareQuery(query).words.length > 0;
+  return { matches: current ? state.matches || EMPTY_MATCHES : EMPTY_MATCHES, passageMatches: current ? state.passageMatches || EMPTY_MATCHES : EMPTY_MATCHES, message: current ? state.message : '',
+    pending: Boolean(eligible && (!current || state.pending)) };
 }

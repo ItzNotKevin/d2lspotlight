@@ -17,6 +17,7 @@ export function usePdfSearch({ isOpen, query, filters, resources, revision, hist
     return () => { active = false; clearTimeout(timer); };
   }, [isOpen, key, resources, history]);
   const current = isOpen && state?.key === key && state.resources === resources && state.history === history;
-  return { matches: current ? state.matches : EMPTY, message: current ? state.message : '' };
+  return { matches: current ? state.matches : EMPTY, message: current ? state.message : '',
+    pending: Boolean(isOpen && query.trim().length >= 2 && !current) };
 }
 
