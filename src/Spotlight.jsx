@@ -162,16 +162,16 @@ function SearchResultCard({ id, resource, query, selected, onSelect, onHover }) 
   );
 }
 
-function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect, onSearchDocument, documentId, heading = 'Matching resources', emptyMessage = 'Try another title, course code, or remove a filter.' }) {
+function SearchResultsContainer({ listRef, results, query, selectedIndex, onHover, onSelect, onSearchDocument, documentId, pending = false, heading = 'Matching resources', emptyMessage = 'Try another title, course code, or remove a filter.' }) {
   const selected = results[selectedIndex];
   const canSearchWithin = onSearchDocument && selected?.source === 'LEARN' && isSearchableDocument(selected) && (selected.resourceId || selected.id) !== documentId;
   return (
     <div className="ls-results" ref={listRef}>
       <div className="ls-section"><span>{heading}</span><span className="ls-result-tools">
         {canSearchWithin && <button type="button" className="ls-chip ls-search-within" aria-label={`Search within ${selected.title}`} title={`Search within ${selected.title} · ${selected.course}`} onClick={() => onSearchDocument(selected)}><Search size={12} aria-hidden="true" />Search within document</button>}
-        <span>{results.length} shown</span>
+        <span role="status">{results.length} shown{pending ? ' · searching contents…' : ''}</span>
       </span></div>
-      <div id="ls-results" role="listbox" aria-label="Course resources">
+      <div id="ls-results" role="listbox" aria-label="Course resources" aria-busy={pending}>
         {results.map((resource, index) => (
           <motion.div
             key={resource.id || `${resource.course}-${resource.title}`}
@@ -193,7 +193,7 @@ function SearchResultsContainer({ listRef, results, query, selectedIndex, onHove
         ))}
       </div>
       {!results.length && (
-        <div className="ls-empty"><strong>No matching resources</strong><span>{emptyMessage}</span></div>
+        <div className="ls-empty"><strong>{pending ? 'Searching your saved resources…' : 'No matching resources'}</strong><span>{pending ? 'Checking document text and related meanings. Matches will appear here.' : emptyMessage}</span></div>
       )}
     </div>
   );
@@ -498,6 +498,7 @@ export function Spotlight({ isOpen = true, handleClose = () => {}, onExited = ()
                     {connection}
                     {packStorageKey && <AssignmentPacks key={packStorageKey} storageKey={packStorageKey} resources={resources} courses={courses} query={searchValue} courseId={courseId} selected={searchResults[selectedIndex]} onOpen={openResource} />}
                     <SearchResultsContainer listRef={listRef} results={searchResults} query={searchValue} selectedIndex={selectedIndex} onHover={setSelectedIndex} onSelect={selectResult} onSearchDocument={demo ? null : searchWithinDocument} documentId={documentId}
+                      pending={!demo && remoteResults === null && (pdf.pending || semantic.pending)}
                       heading={remoteResults !== null ? 'Piazza posts' : hasQuery ? 'Matching resources' : searchResults.some((item) => history[item.id]) ? 'Recently opened' : 'Start exploring'}
                       emptyMessage={remoteResults !== null ? 'Type to search Piazza.' : !resources.length ? 'Open Spotlight on LEARN or in a Piazza class to load resources.' : !hasQuery && recent ? 'Open a resource through Spotlight to see it here.' : 'Try another title, course code, or remove a filter.'} />
                     <div className="ls-footer"><span>{footer}</span><KeyboardHelp /><span className="ls-hints"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Select</span></span><span className="ls-notice" role="status" aria-live="polite">{notice || pdf.message || semantic.message}</span></div>
