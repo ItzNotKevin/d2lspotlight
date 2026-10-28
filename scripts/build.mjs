@@ -10,8 +10,8 @@ import { readOutlineBundle } from './outline-runtime.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 // Prepare first so a missing model/network failure does not destroy a previous
-// working dist directory. Every normal build includes verified OCR assets.
-const ocrManifest = await ensureOcrAssets({ root });
+// working dist directory. Lite builds never inspect or download OCR models.
+const ocrManifest = process.argv.includes('--without-ocr') ? null : await ensureOcrAssets({ root });
 await build({ root });
 await build({ root, configFile: false, build: { outDir: 'dist', emptyOutDir: false, target: 'es2022',
   lib: { entry: resolve(root, 'background.js'), formats: ['es'], fileName: () => 'background.js' } } });
@@ -41,12 +41,13 @@ await cp(resolve(root, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'), r
 await cp(resolve(root, 'node_modules/pdfjs-dist/cmaps'), resolve(root, 'dist/pdf-cmaps'), { recursive: true });
 await cp(resolve(root, 'node_modules/pdfjs-dist/standard_fonts'), resolve(root, 'dist/pdf-fonts'), { recursive: true });
 await cp(resolve(root, 'node_modules/pdfjs-dist/wasm'), resolve(root, 'dist/pdf-wasm'), { recursive: true });
-for (const name of Object.keys(ocrManifest.files)) {
+for (const name of Object.keys(ocrManifest?.files || {})) {
   const target = resolve(root, 'dist/ocr-models', name);
   await mkdir(resolve(target, '..'), { recursive: true });
   await cp(resolve(root, 'ocr-assets/models', name), target);
 }
-await writeFile(resolve(root, 'dist/ocr-manifest.json'), JSON.stringify({ available: true, version: ocrManifest.version }));
+await writeFile(resolve(root, 'dist/ocr-manifest.json'), JSON.stringify(ocrManifest
+  ? { available: true, version: ocrManifest.version } : { available: false }));
 for (const name of ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']) {
   await cp(resolve(root, 'node_modules/onnxruntime-web/dist', name), resolve(root, 'dist/wasm', name));
 }

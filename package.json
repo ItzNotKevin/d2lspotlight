@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "node scripts/build.mjs",
+    "build:lite": "node scripts/build.mjs --without-ocr",
     "setup:semantic": "node scripts/setup-semantic.mjs",
     "check:semantic": "node scripts/check-semantic.mjs",
     "check:semantic:browser": "node scripts/check-semantic-browser.mjs",
