@@ -5,6 +5,17 @@ import { updatePacks, resolvePackItem, matchingPacks, packStorageKey } from '../
 const resource = { id: 'notes', source: 'LEARN', courseId: 'cs246', title: 'Private notes', url: 'https://learn.uwaterloo.ca/' };
 const create = () => updatePacks([], { type: 'create', id: 'a2', name: ' A2 ', courseId: 'cs246' });
 
+test('bare course numbers find packs across subjects while keeping number and course filters exact', () => {
+  const courses = [{ id: 'cs246', name: 'CS246' }, { id: 'math246', name: 'MATH 246' }, { id: 'cs245', name: 'CS245' }];
+  const packs = [...create(), { id: 'math', name: 'A2', courseId: 'math246', items: [] },
+    { id: 'other', name: 'A2', courseId: 'cs245', items: [] }];
+  assert.deepEqual(matchingPacks(packs, '246 a2', courses).map(pack => pack.id), ['a2', 'math']);
+  assert.deepEqual(matchingPacks(packs, '246 a2', courses, 'math246').map(pack => pack.id), ['math']);
+  assert.deepEqual(matchingPacks(packs, '24 a2', courses), []);
+  assert.deepEqual(matchingPacks(packs, '246 a12', courses), []);
+  assert.deepEqual(matchingPacks(packs, 'cs246 a2', courses).map(pack => pack.id), ['a2']);
+});
+
 test('renaming preserves saved references and rejects blank names', () => {
   const packs = updatePacks(create(), { type: 'save', packId: 'a2', section: 'Notes', resource });
   const renamed = updatePacks(packs, { type: 'rename', packId: 'a2', name: ' Assignment 2 ' });
