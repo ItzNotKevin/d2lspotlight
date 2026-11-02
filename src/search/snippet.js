@@ -4,7 +4,7 @@ export function matchingSnippet(resource, query, length = 240) {
   const text = String(resource.contentText || resource.snippet || '').replace(/\s+/g, ' ').trim();
   if (text.length <= length) return text;
   const lower = text.toLocaleLowerCase();
-  const words = prepareQuery(query).topics.filter(word => word.length > 2 && !/\d/.test(word));
+  const words = prepareQuery(query).topics.filter(word => word.length > 2 && !/^[a-z]{2,8}\d{2,4}[a-z]?$/.test(word));
   const positions = words.map(word => lower.indexOf(word)).filter(position => position >= 0);
   let start = positions.length ? Math.max(0, Math.min(...positions) - 70) : 0;
   if (start) {

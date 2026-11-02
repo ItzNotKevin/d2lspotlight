@@ -2,6 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { matchingSnippet } from '../src/search/snippet.js';
 
+test('numeric topics bring the matching passage into view without centering the course code', () => {
+  const contentText = 'CS246 course overview. ' + 'General information. '.repeat(30)
+    + 'A 404 response means the page was not found. ' + 'More information. '.repeat(30);
+  const result = matchingSnippet({ contentText }, 'cs246 404');
+  assert.match(result, /404 response means the page was not found/);
+  assert.ok(result.startsWith('…'));
+  assert.ok(result.length <= 242);
+});
+
 test('website previews show the matching passage rather than an unrelated opening paragraph', () => {
   const contentText = 'General information about the course. '.repeat(20) + 'Academic advising can help with course selection. ' + 'More course information. '.repeat(20);
   const result = matchingSnippet({ contentText, snippet: 'Unrelated opening paragraph.' }, 'cs246 advising');
