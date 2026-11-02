@@ -1,3 +1,5 @@
+import { courseNumbers } from '../search/course.js';
+
 export const PACK_SECTIONS = ['Instructions', 'Notes', 'Clarifications', 'Submit'];
 
 export function packStorageKey(learnAccount, piazzaAccount) {
@@ -51,8 +53,10 @@ export function matchingPacks(packs, query, courses, courseId = '') {
     .replace(/\b([a-z]{2,8})[\s_-]+(\d{2,4}[a-z]?)\b/g, '$1$2')
     .replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
   const words = normalize(query);
-  return packs.filter(pack => (!courseId || pack.courseId === courseId)
-    && courses.some(course => course.id === pack.courseId)
-    && words.every(word => normalize(`${pack.name} ${courses.find(course => course.id === pack.courseId)?.name || ''}`)
-      .some(token => /\d/.test(word) ? token === word : token.includes(word))));
+  return packs.filter(pack => {
+    const course = courses.find(course => course.id === pack.courseId);
+    if (!course || (courseId && pack.courseId !== courseId)) return false;
+    const tokens = [...normalize(`${pack.name} ${course.name || ''}`), ...courseNumbers({ course: course.name })];
+    return words.every(word => tokens.some(token => /\d/.test(word) ? token === word : token.includes(word)));
+  });
 }
